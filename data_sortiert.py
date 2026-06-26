@@ -57,10 +57,10 @@ def sortiere_und_aktualisiere_ekg_daten(
 if __name__ == "__main__":
 
     quellordner = os.path.join("Data", "ekg_data")
-    zielordner = os.path.join("Data", "resampled_data")
+    zielordner = os.path.join("Data", "data_sortiert")
 
     alter_prefix = "data/ekg_data/"
-    neuer_prefix = "data/resampled_data/"
+    neuer_prefix = "data/data_sortiert/"
 
     sortiere_und_aktualisiere_ekg_daten(
         quellordner,
