@@ -6,7 +6,7 @@ import json
 from PIL import Image
 from streamlit_option_menu import option_menu
 
-from DashboardIntergrationII.Personen_Verwaltung import benutzer_verwaltung
+from Personen_Verwaltung import benutzer_verwaltung
 
 #import data_resampling
 #from Benutzer_Verwaltung import funktion_verwaltung
