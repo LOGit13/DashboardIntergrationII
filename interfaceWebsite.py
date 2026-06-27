@@ -6,6 +6,8 @@ import json
 from PIL import Image
 from streamlit_option_menu import option_menu
 
+from DashboardIntergrationII.Personen_Verwaltung import benutzer_verwaltung
+
 #import data_resampling
 #from Benutzer_Verwaltung import funktion_verwaltung
 #from Personen import read_data, Klasse_ekgdata, Klasse_person
@@ -26,10 +28,17 @@ with st.sidebar:
         }
     )
 
+json_datei_link = 'DashboardIntergrationII/Personen_Verwaltung/data/person_db_test.json'
+#json_datei_einlesen = read_data.(json_datei_link)
 
+roh_daten = os.path.join("data", "ekg_data")
+sortierte_daten = os.path.join("data", "data_sortiert")
 
+frequenz_faktor = 100
+alter_pfad = "data/ekg_data/"
+neuer_pad = "data/data_sortiert/"
 
-
+#data_resampling.resample_and_changeLink_ekg_data (roh_daten, sortierte_daten, neuer_pad, alter_pfad, json_datei_link)
 
 if selected == "Startseite":
     st.title("Willkommen zur EKG Analyse App")
@@ -65,8 +74,15 @@ if selected == "Personen Verwaltung":
     option = st.segmented_control("Option wählen:", ["Neue Person anlegen", "Bestehende Nutzer aktualisieren", "Nutzer löschen"])
 
     if option == "Neue Person anlegen":
-        #unser_id = funktion_verwaltung.get_next_user_id(data_jsonperson_db))
+        #unser_id = benutzer_verwaltung.naechste_user_id(data_json)
         vorname = st.text_input("Vorname")
         nachname = st.text_input("Nachname")
         geburtsdatum = st.date_input("Geburtsdatum", min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.now())
+
+        bild_person = st.file_uploader("Profilbild hochladen", type=["jpg", "jpeg", "png"])
+        bild_speichern = None
+        #speichern des Bildes, wenn es hochgeladen wurde
+        #if bild_person is not None:
+         #   bild_ordner = f" hier fehlt noch andere Datein
         
+
