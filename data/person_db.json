@@ -1,7 +1,7 @@
 [
     {
         "id": 1,
-        "date_of_birth": 1989,
+        "date_of_birth": "1989-01-01",
         "firstname": "Julian",
         "lastname": "Huber",
         "picture_path": "data/pictures/tb.jpg",
@@ -20,7 +20,7 @@
     },
     {
         "id": 2,
-        "date_of_birth": 1967,
+        "date_of_birth": "1967-01-01",
         "firstname": "Yannic",
         "lastname": "Heyer",
         "picture_path": "data/pictures/js.jpg",
@@ -34,7 +34,7 @@
     },
     {
         "id": 3,
-        "date_of_birth": 1973,
+        "date_of_birth": "1973-01-01",
         "firstname": "Yunus",
         "lastname": "Schmirander",
         "picture_path": "data/pictures/bl.jpg",
@@ -48,7 +48,7 @@
     },
     {
         "id": 4,
-        "date_of_birth": 2003,
+        "date_of_birth": "2003-07-28",
         "firstname": "Noah",
         "lastname": "Reinermann",
         "picture_path": "data/pictures/Noah_Reinermann.jpg",
@@ -62,7 +62,7 @@
     },
     {
         "id": 5,
-        "date_of_birth": 2006,
+        "date_of_birth": "2006-01-01",
         "firstname": "Lenn",
         "lastname": "Oßwald",
         "picture_path": "data/pictures/Lenn_Oßwald.jpg",
