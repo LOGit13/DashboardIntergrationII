@@ -1,39 +1,42 @@
 import json
-import os
 
-def naechste_user_id(data):
-    if data:
-        return max(person['id'] for person in data) + 1
-    else:
+def neue_person_id(personen):
+    vorhandene_ids = []
+    for person in personen:
+        if "id" in person:
+            vorhandene_ids.append(int(person["id"]))
+    if not vorhandene_ids:
         return 1
-    
-def naechste_ekg_id(data):
-     ekg_ids = [ekg['id'] for person in data for ekg in person['ekg_tests']]
-     if ekg_ids:
-         return max(ekg_ids) + 1
-     else:
-         return 1
-     
-def benutzer_verwaltung(json_file, user_info, update=False):
-    with open(json_file, 'r') as file:
-        data = json.load(file)
-    
-    user_found = False
+    return max(vorhandene_ids) + 1
 
-    if update:
-        for person in data:
-            if person['id'] == user_info['id']:
-                person.update(user_info)
-                user_found = True
+def neue_ekg_id(personen):
+    vorhandene_ids = []
+    for person in personen:
+        ekg_liste = person.get("ekg_tests", [])
+        for eintrag in ekg_liste:
+            if "id" in eintrag:
+                vorhandene_ids.append(int(eintrag["id"]))
+    if not vorhandene_ids:
+        return 1
+    return max(vorhandene_ids) + 1
+
+def benutzer_speichern(pfad_json, benutzer_info, aktualisieren=False):
+    with open(pfad_json, "r" , encoding = "utf-8") as datei:
+        personen = json.load(datei)
+
+    if aktualisieren:
+        gefunden = False
+        for person in personen:
+            if person.get("id") == benutzer_info.get("id"):
+                person.update(benutzer_info)
+                gefunden = True
                 break
-        if not user_found:
-            raise ValueError("User nicht gefunden.")
+        if not gefunden:
+            raise ValueError("Benutzer wurde nicht gefunden.")
     else:
-        user_info['id'] = naechste_user_id(data)
-        data.append(user_info)
+        benutzer_info["id"] = neue_person_id(personen)
+        personen.append(benutzer_info)
 
-    with open(json_file, 'w') as file:
-        json.dump(data, file)
+    with open(pfad_json, "w", encoding="utf-8") as datei:
+        json.dump(personen, datei, indent=4, ensure_ascii=False)
 
-if __name__ == "__main__":
-    json_file = 'data/person_db_test.json'

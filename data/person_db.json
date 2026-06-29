@@ -64,8 +64,8 @@
         "id": 5,
         "date_of_birth": "2006-13-01",
         "firstname": "Lenn",
-        "lastname": "Oßwald",
-        "picture_path": "data/pictures/Lenn_Oßwald.jpg",
+        "lastname": "O\u00dfwald",
+        "picture_path": "data/pictures/Lenn_O\u00dfwald.jpg",
         "ekg_tests": [
             {
                 "id": 6,

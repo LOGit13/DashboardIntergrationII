@@ -2,70 +2,51 @@ import os
 import json
 import pandas as pd
 
-# ---------------------------------------------------------
-# Funktion: EKG-Daten aus einem Ordner ausdünnen und Links anpassen
-# ---------------------------------------------------------
+def tab_datei(pfad: str, daten: pd.DataFrame) -> None:
+    with open(pfad, "w", encoding="utf-8") as f:
+        for zeile in daten.itertuples(index=False, name=None):
+            wert = [str(w) if pd.notna(w) else "" for w in zeile]
+            f.write("\t".join(wert) + "\n")
 
-def sortiere_und_aktualisiere_ekg_daten(
-        quellordner,
-        zielordner,
-        neuer_pfad_prefix,
-        alter_pfad_prefix,
-        json_datei,
-        schrittweite=5):
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-    # JSON-Daten einlesen
-    with open(json_datei, "r") as file:
-        personen_liste = json.load(file)
+def ekg_data_sortiert(eingabe: str, ausgabe: str, neu: str, alt: str, json_pfad: str, schritt: int = 5):
+    if not os.path.isabs(json_pfad):
+        json_pfad = os.path.join(BASE_DIR, json_pfad)
+    if not os.path.isabs(eingabe):
+        eingabe = os.path.join(BASE_DIR, eingabe)
+    if not os.path.isabs(ausgabe):
+        ausgabe = os.path.join(BASE_DIR, ausgabe)
 
-    # Alle Dateien im Quellordner durchgehen
-    for dateiname in os.listdir(quellordner):
-        if dateiname.endswith(".txt"):
+    with open(json_pfad, "r", encoding="utf-8") as f:
+        personen = json.load(f)
 
-            # Pfad zur Originaldatei
-            original_pfad = os.path.join(quellordner, dateiname)
+    os.makedirs(ausgabe, exist_ok=True)
+    for datei in sorted(os.listdir(eingabe)):
+        if datei.endswith(".txt"):
+            pfad = os.path.join(eingabe, datei)
+            daten = pd.read_csv(pfad, sep=r"\s+", header=None, engine="python")
+            daten_res = daten.iloc[::schritt]
 
-            # Rohdaten laden
-            df = pd.read_csv(original_pfad, sep="\t", header=None)
+            ziel = os.path.join(ausgabe, datei).replace("\\", "/")
+            tab_datei(ziel, daten_res)
 
-            # Daten ausdünnen (z.B. jeder 5. Wert)
-            df_gekuerzt = df.iloc[::schrittweite, :]
+            alt_link= f"{alt}{datei}"
+            neu_link = f"{neu}{datei}"
 
-            # Zielpfad erzeugen
-            neuer_dateipfad = os.path.join(zielordner, dateiname).replace("\\", "/")
-
-            # Neue Datei speichern
-            df_gekuerzt.to_csv(neuer_dateipfad, sep="\t", index=False, header=False)
-
-            # Links im JSON anpassen
-            alter_link = f"{alter_pfad_prefix}{dateiname}"
-            neuer_link = f"{neuer_pfad_prefix}{dateiname}"
-
-            for person in personen_liste:
+            for person in personen:
                 for test in person["ekg_tests"]:
-                    if test["result_link"].replace("\\", "/") == alter_link:
-                        test["result_link"] = neuer_link
+                    if test["result_link"].replace("\\", "/") == alt_link:
+                        test["result_link"] = neu_link
 
-    # Aktualisierte JSON-Datei speichern
-    with open("data/person_db_aktuell.json", "w") as f:
-        json.dump(personen_liste, f, indent=4)
+    with open(json_pfad, "w", encoding="utf-8") as f:
+        json.dump(personen, f, indent=4)
 
+if __name__== "__main__":
+    eingabe = "data/ekg_data"
+    ausgabe = "data/data_sortiert"
 
-# ---------------------------------------------------------
-# Hauptprogramm
-# ---------------------------------------------------------
-if __name__ == "__main__":
+    neuer_link = "data/data_sortiert/"
+    alter_link = "data/ekg_data/"
 
-    quellordner = os.path.join("Data", "ekg_data")
-    zielordner = os.path.join("Data", "data_sortiert")
-
-    alter_prefix = "data/ekg_data/"
-    neuer_prefix = "data/data_sortiert/"
-
-    sortiere_und_aktualisiere_ekg_daten(
-        quellordner,
-        zielordner,
-        neuer_prefix,
-        alter_prefix,
-        json_datei="data/person_db.json"
-    )
+    ekg_data_sortiert(eingabe, ausgabe, neuer_link, alter_link, "data/person_db.json")

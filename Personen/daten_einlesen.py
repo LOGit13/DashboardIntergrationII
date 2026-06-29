@@ -59,4 +59,5 @@ def txt_zu_df(pfad):
     else:
         print("Datei wurde nicht gefunden:", pfad)
         return pd.DataFrame()
+    
 
