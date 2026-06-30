@@ -214,3 +214,44 @@ if selected == "EKG App":
     st.write("**HRV Bereich:**", herzvariabilität_bereich)
 
 
+
+
+
+
+
+
+
+
+
+if selected == "CSV Analyse":
+    st.title("CSV Analyse")
+
+    fenster_zonen, fenster_power = st.tabs(["Zonenanalyse", "Power Curve"])
+
+    with fenster_zonen:
+        max_hf = st.number_input("Maximale Herzfrequenz:", min_value=120, max_value=250, value=190)
+        st.write(f"Max HF: {max_hf}")
+
+        df = zonen_einteilung.aktivitaet_einlesen()
+        fig = zonen_einteilung.ekg_plot(df, max_hf)
+        st.plotly_chart(fig)
+
+        fenster_leistung, fenster_zoneninfo = st.tabs(["Leistung", "Zoneninfo"])
+
+        with fenster_leistung:
+            st.metric ("Ø Leistung [W]", round(zonen_einteilung.mittelwert_leistung(df), 2))
+            st.metric ("Max Leistung [W]", zonen_einteilung.maximale_leistung(df))
+        with fenster_zoneninfo:
+            daten = zonen_einteilung.leistung_zeit_in_zonen(df, max_hf)
+            df_zonen = pd.DataFrame(daten).set_index("Zone")
+
+    with fenster_power:
+        df_power = power_curve.aktivitaet_einlesen()
+        freq = st.number_input("Frequenz:", min_value=1, max_value=20, value=1)
+
+        x_min = st.number_input("X-Min (Sekunden):", min_value=0, max_value=1800, value=0)
+        x_max_raw = st.number_input("X-Max (Sekunden):", min_value=0, max_value=1800, value=300)
+        x_max = x_max_raw + 5
+
+        st.plotly_chart(power_curve.plot_powercurve(df_power, x_min, x_max, freq))
+        st.plotly_chart(power_curve.zoom_powercurve(df_power, x_min, x_max, freq))
