@@ -1,5 +1,4 @@
 from pathlib import Path
-
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -25,9 +24,25 @@ class EKGData:
         self.ende = None
         self.rate = None
 
+    @staticmethod
+    def lade_ekg_nach_id(ekg_id, personen_liste):
+        for person in personen_liste:
+            for ekg in person.get("ekg_tests", []):
+                if ekg.get("id") == ekg_id:
+                    return ekg
+        return None
+
     def zeitbereich(self, start, ende, rate):
-        self.start = float(start)
-        self.ende = float(ende)
+        df = self.df_plot()
+        if start is None:
+            self.start = df["Zeit"].min()
+        else:
+            self.start = float(start)
+        if ende is None:
+            self.ende = df["Zeit"].max()
+        else:
+            self.ende = float(ende)
+
         self.rate = float(rate)
 
     def plot_basis(self):

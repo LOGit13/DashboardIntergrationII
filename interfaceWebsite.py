@@ -1,67 +1,16 @@
 import streamlit as st
 import pandas as pd
 import os
-import io
-import base64
+import json
+import math
 from PIL import Image
 from streamlit_option_menu import option_menu
 
+from Personen import daten_einlesen, klasse_person, klasse_ekgdata
 from Personen_Verwaltung import benutzer_verwaltung
+from CSV_analyse import power_curve, zonen_einteilung
+import data_sortiert
 
-THEME_OPTIONS = ["White Theme", "Red Theme", "Blue Theme"]
-
-
-def get_image_data_uri(image_bytes: bytes, image_format: str = "png") -> str:
-    encoded = base64.b64encode(image_bytes).decode("utf-8")
-    return f"data:image/{image_format};base64,{encoded}"
-
-
-def build_theme_css(theme_choice: str, bg_data_uri: str | None) -> str:
-    if theme_choice == "Red Theme":
-        background_color = "#FDE8E8"
-        text_color = "#7F1D1D"
-        overlay_bg = "rgba(253, 232, 232, 0.88)"
-        sidebar_bg = "#881B1B"
-        sidebar_color = "#FFFFFF"
-    elif theme_choice == "Blue Theme":
-        background_color = "#EAF2FB"
-        text_color = "#0f1f3d"
-        overlay_bg = "rgba(255, 255, 255, 0.88)"
-        sidebar_bg = "#1E3A8A"
-        sidebar_color = "#ffffff"
-    else:
-        background_color = "#FFFFFF"
-        text_color = "#111111"
-        overlay_bg = "rgba(255, 255, 255, 0.88)"
-        sidebar_bg = "#f0f2f6"
-        sidebar_color = "#111111"
-
-    bg_style = f"background-color: {background_color};"
-    if bg_data_uri:
-        bg_style = (
-            f'background-image: url("{bg_data_uri}"); '
-            "background-size: cover; background-position: center;"
-        )
-
-    return f"""
-    <style>
-        [data-testid="stAppViewContainer"] {{ {bg_style} }}
-        [data-testid="stAppViewContainer"] * {{ color: {text_color} !important; }}
-        [data-testid="stAppViewContainer"] {{ background-color: {background_color}; }}
-        [data-testid="stAppViewContainer"] div {{ color: {text_color} !important; }}
-        [data-testid="stSidebar"] {{ background-color: {sidebar_bg} !important; color: {sidebar_color} !important; }}
-        [data-testid="stSidebar"] * {{ color: {sidebar_color} !important; }}
-        .css-1d391kg {{ background-color: {overlay_bg} !important; color: {text_color} !important; }}
-        .css-18e3th9 {{ }}
-        .st-bc {{ color: {text_color} !important; }}
-        button, input, textarea, select {{ color: {text_color} !important; }}
-    </style>
-    """
-
-#import data_resampling
-#from Benutzer_Verwaltung import funktion_verwaltung
-#from Personen import read_data, Klasse_ekgdata, Klasse_person
-#from CSV_analyse import Einteilung_Zonen, Power_Curve
 
 with st.sidebar:
     selected = option_menu(
@@ -78,86 +27,27 @@ with st.sidebar:
         }
     )
 
-json_datei_link = 'DashboardIntergrationII/Personen_Verwaltung/data/person_db_test.json'
-#json_datei_einlesen = read_data.(json_datei_link)
+json_pfad = "data/person_db.json"
+personen_data = daten_einlesen.personen_einlesen(json_pfad)
 
-if "theme_choice" not in st.session_state:
-    st.session_state.theme_choice = "White Theme"
-if "show_theme_panel" not in st.session_state:
-    st.session_state.show_theme_panel = False
-if "uploaded_bg_bytes" not in st.session_state:
-    st.session_state.uploaded_bg_bytes = None
-if "uploaded_bg_type" not in st.session_state:
-    st.session_state.uploaded_bg_type = "png"
+ordner_ekg = "data/ekg_data"
+ordner_sortiert = "data/data_sortiert"
 
-
-def get_active_background_data_uri() -> str | None:
-    if st.session_state.uploaded_bg_bytes is not None:
-        return get_image_data_uri(st.session_state.uploaded_bg_bytes, st.session_state.uploaded_bg_type)
-
-    return None
-
-roh_daten = os.path.join("data", "ekg_data")
-sortierte_daten = os.path.join("data", "data_sortiert")
-
-frequenz_faktor = 100
-alter_pfad = "data/ekg_data/"
-neuer_pad = "data/data_sortiert/"
-
-#data_resampling.resample_and_changeLink_ekg_data (roh_daten, sortierte_daten, neuer_pad, alter_pfad, json_datei_link)
+abtastrate = 100
 
 if selected == "Startseite":
-    if st.button("Themes auswählen"):
-        st.session_state.show_theme_panel = not st.session_state.show_theme_panel
-
     st.title("Willkommen zur EKG Analyse App")
     st.subheader("Einführung")
-    st.write("Die Website dient als zentrale Plattform zur Verwaltung von Personen und deren EKG‑Messdaten. Sie ermöglicht das Anlegen und Bearbeiten von Nutzern, das Hochladen und Auswerten von EKG‑Aufzeichnungen sowie die visuelle Darstellung der Signale. Zusätzlich bietet sie Funktionen zur Analyse von CSV‑Dateien, sodass verschiedene Datenquellen übersichtlich verarbeitet und interpretiert werden können.")
-    st.write("Bitte wählen Sie eine Option aus dem Menü auf der linken Seite aus, oder nutzen Sie unten die Theme- und Hintergrundeinstellungen.")
+    st.markdown("""
+Die Website dient als zentrale Plattform zur Verwaltung von Personen und deren EKG‑Messdaten.
 
-    if st.session_state.show_theme_panel:
-        st.markdown("### Theme und Hintergrund")
-        st.session_state.theme_choice = st.selectbox("Theme auswählen:", THEME_OPTIONS, index=THEME_OPTIONS.index(st.session_state.theme_choice) if st.session_state.theme_choice in THEME_OPTIONS else 0)
-
-        st.markdown("#### Eigenes Hintergrundbild hochladen")
-        uploaded_bg = st.file_uploader("Hintergrundbild auswählen", type=["jpg", "jpeg", "png"])
-
-        if uploaded_bg is not None:
-            st.session_state.uploaded_bg_bytes = uploaded_bg.read()
-            st.session_state.uploaded_bg_type = uploaded_bg.type.split("/")[-1]
-            st.success("Eigenes Hintergrundbild wurde geladen.")
-            st.image(Image.open(io.BytesIO(st.session_state.uploaded_bg_bytes)), caption="Hintergrundbild-Vorschau", use_column_width=True)
-
-        if st.session_state.uploaded_bg_bytes is not None:
-            if st.button("Hintergrundbild deaktivieren"):
-                st.session_state.uploaded_bg_bytes = None
-                st.success("Hintergrundbild wurde deaktiviert.")
-        else:
-            st.info("Kein benutzerdefiniertes Hintergrundbild aktiv.")
-
-    st.markdown(
-    """
-    <style>
-    .footer {
-        position: fixed;
-        right: 10px;
-        bottom: 10px;
-        color: grey;
-        font-size: 14px;
-        z-index: 100;
-        text-align: right;
-    }
-    </style>
-    <div class="footer">
-        Autor: Noah Reinermann<br>
-        Autor: Lenn Oßwald
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-css = build_theme_css(st.session_state.theme_choice, get_active_background_data_uri())
-st.markdown(css, unsafe_allow_html=True)
+**Funktionen:**
+- Personen anlegen und bearbeiten  
+- EKG‑Daten hochladen und analysieren  
+- Herzratenvariabilität berechnen  
+- CSV‑Dateien auswerten
+""")
+    st.divider()
 
 
 if selected == "Personen Verwaltung":
@@ -167,15 +57,160 @@ if selected == "Personen Verwaltung":
     option = st.segmented_control("Option wählen:", ["Neue Person anlegen", "Bestehende Nutzer aktualisieren", "Nutzer löschen"])
 
     if option == "Neue Person anlegen":
-        #unser_id = benutzer_verwaltung.naechste_user_id(data_json)
+        person_id = benutzer_verwaltung.neue_person_id(personen_data)
         vorname = st.text_input("Vorname")
         nachname = st.text_input("Nachname")
         geburtsdatum = st.date_input("Geburtsdatum", min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.now())
 
         bild_person = st.file_uploader("Profilbild hochladen", type=["jpg", "jpeg", "png"])
-        bild_speichern = None
-        #speichern des Bildes, wenn es hochgeladen wurde
-        #if bild_person is not None:
-         #   bild_ordner = f" hier fehlt noch andere Datein
-        
+        bildpfad = None
+        if bild_person:
+            bildname = f"{person_id}_{bild_person.name}"
+            bildpfad = f"data/pictures/{bildname}"
+            with open(bildpfad, "wb") as f:
+                f.write(bild_person.getbuffer())
+            st.success(f"Bild {bild_person.name} gespeichert")
+
+        ekg_datei = st.file_uploader("EKG-Datei hochladen", type=["txt"])
+        ekg_tests = []
+        if ekg_datei:
+            ekg_id = benutzer_verwaltung.neue_ekg_id(personen_data)
+            ekg_datum = st.text_input("Datum der EKG-Messung")
+            ekg_name = f"{person_id}_{ekg_id}_{ekg_datei.name}"
+            ekgpfad = f"data/ekg_data/{ekg_name}"
+            with open(ekgpfad, "wb") as f:
+                f.write(ekg_datei.getbuffer())
+            st.success(f"EKG‑Datei {ekg_datei.name} gespeichert")
+            ekg_tests.append({"id": ekg_id, "date": ekg_datum, "result_link": ekgpfad})
+
+        person_info = {
+            "id": person_id,
+            "firstname": vorname,
+            "lastname": nachname,
+            "date_of_birth": str(geburtsdatum),
+            "picture_path": bildpfad,
+            "ekg_tests": ekg_tests,
+        }
+
+        if st.button("Person speichern"):
+            benutzer_verwaltung.benutzer_speichern(json_pfad, person_info)
+            st.success("Neue Person hinzugefügt")
+
+    if option == "Bestehende Nutzer aktualisieren":
+        auswahl = {f"{p['id']} - {p['firstname']} {p['lastname']}": p['id'] for p in personen_data}
+        ausgewaelt = st.selectbox("Person auswählen", list(auswahl.keys()))
+        ausgewaelt_id = auswahl[ausgewaelt]
+
+        person_info = next((p for p in personen_data if p["id"] == ausgewaelt_id), None)
+
+        if person_info:
+            vorname = st.text_input("Vorname", value=person_info["firstname"])
+            nachname = st.text_input("Nachname", value=person_info["lastname"])
+            geburtsdatum = st.date_input("Geburtsdatum", value=pd.to_datetime(person_info["date_of_birth"]))
+
+            if st.checkbox("Profilbild ändern"):
+                neues_bild = st.file_uploader("Neues Profilbild hochladen", type=["jpg", "jpeg", "png"])
+                if neues_bild:
+                    bildname = f"{ausgewaelt_id}_{neues_bild.name}"
+                    bildpfad = f"data/pictures/{bildname}"
+                    with open(bildpfad, "wb") as f:
+                        f.write(neues_bild.getbuffer())
+                    st.success (f"Bild {neues_bild.name} gespeichert")
+                    person_info ["picture_path"] = bildpfad
+
+            if st.checkbox("Neue EKG-Datei hinzufügen"):
+                neue_ekg = st.file_uploader("EKG-Datei hochladen", type=["txt"])
+                if neue_ekg:
+                    ekg_id = benutzer_verwaltung.neue_ekg_id(personen_data)
+                    ekg_datum = st.text_input("Datum der neuen EKG-Messung")
+                    ekg_name = f"{ausgewaelt_id}_{ekg_id}_{neue_ekg.name}"
+                    ekgpfad = f"data/ekg_data/{ekg_name}"
+                    with open(ekgpfad, "wb") as f:
+                        f.write(neue_ekg.getbuffer())
+                    st.success(f"EKG‑Datei {neue_ekg.name} gespeichert")
+                    person_info["ekg_tests"].append({"id": ekg_id, "date": ekg_datum, "result_link": ekgpfad})
+
+            person_info["firstname"] = vorname
+            person_info["lastname"] = nachname
+            person_info["date_of_birth"] = str(geburtsdatum)
+
+            if st.button("Änderungen speichern"):
+                benutzer_verwaltung.person_speichern(json_pfad, person_info, update=True)
+                st.success("Personendaten aktualisiert")
+
+    if option == "Nutzer löschen":
+        auswahl = {f"{p['id']} - {p['firstname']} {p['lastname']}": p["id"] for p in personen_data}
+        if len(auswahl) == 0:
+            st.info("Es sind keine Personen vorhanden")
+        else:
+            ausgewaelt = st.selectbox("Person auswählen", list(auswahl.keys()))
+            ausgewaelt_id = auswahl[ausgewaelt]
+
+            person_info = next((p for p in personen_data if p["id"] == ausgewaelt_id),None)
+            if person_info:
+                st.write(f"**Vorname:** {person_info['firstname']}")
+                st.write(f"**Nachname:** {person_info['lastname']}")
+                st.write(f"**Geburtsdatum:** {person_info['date_of_birth']}")
+
+                bestaetigung = st.checkbox(f"Ich möchte die Person **{person_info['firstname']} {person_info['lastname']}** wirklich löschen.")
+                if bestaetigung:
+                    if st.button("Person endgültig löschen"):
+                        benutzer_verwaltung.person_loeschen(json_pfad, ausgewaelt_id)
+                        st.success("Person wurde erfolgreich gelöscht")    
+
+if selected == "EKG App":
+    st.title("EKG Analyse")
+
+    personen_namen = [f"{p['firstname']} {p['lastname']}" for p in personen_data]
+    name = st.selectbox("Person auswählen", personen_namen)
+
+    person = next(p for p in personen_data if f"{p['firstname']} {p['lastname']}" == name)
+    instanz_person = klasse_person.Person(person)
+
+    fenster1, fenster2 = st.columns(2, gap="large")
+
+    with fenster1:
+        st.subheader("Personendaten")
+        st.write(f"**Vorname:** {person['firstname']}")
+        st.write(f"**Nachname:** {person['lastname']}")
+        st.write(f"**Geburtsdatum:** {person['date_of_birth']}")
+        st.write(f"**Alter:** {instanz_person.berechne_alter()}")
+        st.write(f"**Maximale Herzfrequenz:** {instanz_person.berechne_max_puls()}")
+
+    with fenster2:
+        bildpfad = person.get("picture_path", "data/pictures/none.jpg")
+        try:
+            st.image(Image.open(bildpfad))
+        except:
+            st.warning("Kein gültiges Bild gefunden")
+
+    st.divider()
+    ekg_ids = [t["id"] for t in person["ekg_tests"]]
+    ekg_id = st.selectbox("EKG-Messung auswählen", ekg_ids)
+
+    ekg_dict = klasse_ekgdata.EKGData.lade_ekg_nach_id(ekg_id, personen_data)
+    ekg = klasse_ekgdata.EKGData(ekg_dict)
+
+    ekg.zeitbereich(None, None, abtastrate)
+
+    st.subheader("Zeitbereich auswählen")
+    start, ende = st.slider("Zeitfenster", 0, math.ceil(ekg.zeitreihe_dauer()), (0, 20))
+    ekg.zeitbereich(start, ende, abtastrate)
+
+    st.plotly_chart(ekg.anzeigen_signale())
+    st.divider()
+
+    herzrate_gesamt, herzrate_bereich = ekg.herzrate()
+
+    st.metric("Herzrate gesamt [BPM]", round(herzrate_gesamt, 2))
+    st.metric("Herzrate im Bereich [BPM]", round(herzrate_bereich, 2))
+
+    st.subheader("Herzvariabilität [HRV]")
+
+    herzvariabilität_gesamt = ekg.herzratenvariabilität()
+    herzvariabilität_bereich = ekg.herzratenvariabilität_bereich()
+
+    st.write("**HRV gesamt:**", herzvariabilität_gesamt)
+    st.write("**HRV Bereich:**", herzvariabilität_bereich)
+
 

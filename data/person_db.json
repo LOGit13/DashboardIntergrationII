@@ -9,12 +9,12 @@
             {
                 "id": 1,
                 "date": "10.2.2023",
-                "result_link": "data/resampled_data/01_Ruhe.txt"
+                "result_link": "data/ekg_data/01_Ruhe.txt"
             },
             {
                 "id": 2,
                 "date": "11.3.2023",
-                "result_link": "data/resampled_data/04_Belastung.txt"
+                "result_link": "data/ekg_data/04_Belastung.txt"
             }
         ]
     },
@@ -28,7 +28,7 @@
             {
                 "id": 3,
                 "date": "10.2.2023",
-                "result_link": "data/resampled_data/02_Ruhe.txt"
+                "result_link": "data/ekg_data/02_Ruhe.txt"
             }
         ]
     },
@@ -42,7 +42,7 @@
             {
                 "id": 4,
                 "date": "11.3.2023",
-                "result_link": "data/resampled_data/03_Ruhe.txt"
+                "result_link": "data/ekg_data/03_Ruhe.txt"
             }
         ]
     },
@@ -64,8 +64,8 @@
         "id": 5,
         "date_of_birth": "2006-13-01",
         "firstname": "Lenn",
-        "lastname": "O\u00dfwald",
-        "picture_path": "data/pictures/Lenn_O\u00dfwald.jpg",
+        "lastname": "Oßwald",
+        "picture_path": "data/pictures/Lenn_Oßwald.jpg",
         "ekg_tests": [
             {
                 "id": 6,

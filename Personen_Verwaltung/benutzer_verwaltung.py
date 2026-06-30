@@ -40,3 +40,12 @@ def benutzer_speichern(pfad_json, benutzer_info, aktualisieren=False):
     with open(pfad_json, "w", encoding="utf-8") as datei:
         json.dump(personen, datei, indent=4, ensure_ascii=False)
 
+def person_loeschen(pfad_json, person_id):
+    with open(pfad_json, "r", encoding="utf-8") as datei:
+        personen = json.load(datei)
+    neue_liste = [p for p in personen if p.get("id") != person_id]
+    if len(neue_liste) == len(personen):
+        raise ValueError(f"Person mit ID {person_id} wurde nicht gefunden.")
+    with open(pfad_json, "w", encoding="utf-8") as datei:
+        json.dump(neue_liste, datei, indent=4, ensure_ascii=False)
+
