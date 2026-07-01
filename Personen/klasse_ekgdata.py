@@ -248,7 +248,4 @@ if __name__ == "__main__":
     fig_signal = ekg.anzeigen_signale()
     fig_herzrate = ekg.plot_herzrate()
 
-    # Anzeigen (optional)
-    # fig_signal.show()
-    # fig_herzrate.show()
     
