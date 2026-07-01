@@ -129,32 +129,83 @@ class EKGData:
         datum = self.datum
         return(datum)
     
+    def dateipfad(self):
+        return self.pfad
+    
     def zeitreihe_dauer(self):
         return len(self.df) / self.rate
     
     def herzratenvariabilität(self):
+        # HRV-Berechnung temporär deaktiviert aufgrund von neurokit2-Instabilität
+        # Wird nur mit sehr langen Signalen berechnet (>10000 Punkte)
         if self.df.empty or self.rate is None:
-            return None
+            return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
         signal = self.df["Messwert"].values
-        abtastrate = self.rate
-        verarbeitung, info = nk.ecg_process(signal, sampling_rate=abtastrate)
-        r_peaks = info ["ECG_R_Peaks"]
-        r_zeiten = r_peaks / abtastrate
-        hrv = nk.hrv_time(r_zeiten, sampling_rate=abtastrate)
-        return hrv
-    
+        
+        # Nur für sehr lange Signale versuchen
+        if len(signal) < 10000:
+            print(f"Signal zu kurz für HRV: {len(signal)} Punkte (mindestens 10000 benötigt)")
+            return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+        
+        try:
+            self.peaks()
+            if len(self.peaks_alle) < 2:
+                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+            
+            abtastrate = self.rate
+            
+            # Nur R-Peaks erkennen
+            _, rpeaks_info = nk.ecg_peaks(signal, sampling_rate=abtastrate)
+            r_peaks = rpeaks_info.get("ECG_R_Peaks", [])
+            
+            if r_peaks is None or len(r_peaks) < 2:
+                print("Zu wenige R-Peaks gefunden")
+                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
+            r_zeiten = r_peaks / abtastrate
+            hrv = nk.hrv_time(r_zeiten, sampling_rate=abtastrate)
+            return hrv
+
+        except Exception as e:
+            print(f"Fehler in herzratenvariabilität: {e}")
+            return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+   
     def herzratenvariabilität_bereich(self):
+        # HRV-Berechnung für Bereich - temporär deaktiviert
         if self.df.empty or self.rate is None:
-            return None
-        df_bereich = self.df_bereich()
-        signal = df_bereich["Messwert"].values
-        abtastrate = self.rate
-        verarbeitung, info = nk.ecg_process(signal, sampling_rate=abtastrate)
-        r_peaks = info["ECG_R_Peaks"]
-        r_zeiten = r_peaks / abtastrate
-        hrv_bereich = nk.hrv_time(r_zeiten, sampling_rate=abtastrate)
-        return hrv_bereich
-     
+            return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
+        try:
+            self.peaks()
+            if len(self.peaks_teil) < 2:
+                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+            
+            df_bereich = self.df_bereich()
+            signal = df_bereich["Messwert"].values
+            
+            # Nur für längere Segmente
+            if len(signal) < 500:
+                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+            
+            abtastrate = self.rate
+
+            # Nur R-Peaks erkennen
+            _, rpeaks_info = nk.ecg_peaks(signal, sampling_rate=abtastrate)
+            r_peaks = rpeaks_info.get("ECG_R_Peaks", [])
+            
+            if r_peaks is None or len(r_peaks) < 2:
+                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
+            r_zeiten = r_peaks / abtastrate
+            hrv_bereich = nk.hrv_time(r_zeiten, sampling_rate=abtastrate)
+
+            return hrv_bereich
+
+        except Exception as e:
+            print(f"Fehler in herzratenvariabilität_bereich: {e}")
+            return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
 if __name__ == "__main__":
     import json
 

@@ -135,7 +135,7 @@ if selected == "Personen Verwaltung":
             person_info["date_of_birth"] = str(geburtsdatum)
 
             if st.button("Änderungen speichern"):
-                benutzer_verwaltung.person_speichern(json_pfad, person_info, update=True)
+                benutzer_verwaltung.benutzer_speichern(json_pfad, person_info, aktualisieren=True)
                 st.success("Personendaten aktualisiert")
 
     if option == "Nutzer löschen":
@@ -161,64 +161,119 @@ if selected == "Personen Verwaltung":
 if selected == "EKG App":
     st.title("EKG Analyse")
 
-    personen_namen = [f"{p['firstname']} {p['lastname']}" for p in personen_data]
-    name = st.selectbox("Person auswählen", personen_namen)
+    personen_namen = {f"{p['firstname']} {p['lastname']}": p["id"] for p in personen_data}
+    name = st.selectbox("Person auswählen", list(personen_namen.keys()))
+    person_id = personen_namen[name]
 
-    person = next(p for p in personen_data if f"{p['firstname']} {p['lastname']}" == name)
+
+    person = daten_einlesen.person_finden_mit_id(person_id, personen_data)
     instanz_person = klasse_person.Person(person)
 
-    fenster1, fenster2 = st.columns(2, gap="large")
+    tab_person, tab_ekg = st.tabs(["Personendaten", "EKG Analyse"])
 
-    with fenster1:
-        st.subheader("Personendaten")
-        st.write(f"**Vorname:** {person['firstname']}")
-        st.write(f"**Nachname:** {person['lastname']}")
-        st.write(f"**Geburtsdatum:** {person['date_of_birth']}")
-        st.write(f"**Alter:** {instanz_person.berechne_alter()}")
-        st.write(f"**Maximale Herzfrequenz:** {instanz_person.berechne_max_puls()}")
+    with tab_person:
+        fenster1, fenster2 = st.columns(2, gap="large")
 
-    with fenster2:
-        bildpfad = person.get("picture_path", "data/pictures/none.jpg")
-        try:
-            st.image(Image.open(bildpfad))
-        except:
-            st.warning("Kein gültiges Bild gefunden")
+        with fenster1:
+            st.subheader("Personendaten")
+            st.write(f"**Vorname:** {person['firstname']}")
+            st.write(f"**Nachname:** {person['lastname']}")
+            st.write(f"**Geburtsdatum:** {person['date_of_birth']}")
+            st.write(f"**Alter:** {instanz_person.berechne_alter()}")
+            st.write(f"**Maximale Herzfrequenz:** {instanz_person.berechne_max_puls()}")
 
-    st.divider()
-    ekg_ids = [t["id"] for t in person["ekg_tests"]]
-    ekg_id = st.selectbox("EKG-Messung auswählen", ekg_ids)
+        with fenster2:
+            bildpfad = person.get("picture_path") or "data/pictures/none.jpg"
+            try:
+                st.image(Image.open(bildpfad))
+            except:
+                st.warning("Kein gültiges Bild gefunden")
 
-    ekg_dict = klasse_ekgdata.EKGData.lade_ekg_nach_id(ekg_id, personen_data)
-    ekg = klasse_ekgdata.EKGData(ekg_dict)
+    
 
-    ekg.zeitbereich(None, None, abtastrate)
+    with tab_ekg:
+        st.subheader("EKG Analyse")
+        st.write("Hier können Sie die EKG-Messungen der ausgewählten Person analysieren.")
 
-    st.subheader("Zeitbereich auswählen")
-    start, ende = st.slider("Zeitfenster", 0, math.ceil(ekg.zeitreihe_dauer()), (0, 20))
-    ekg.zeitbereich(start, ende, abtastrate)
+        ekg_ids = [t["id"] for t in person["ekg_tests"]]
+        ekg_id = st.selectbox("EKG-Messung auswählen", ekg_ids)
 
-    st.plotly_chart(ekg.anzeigen_signale())
-    st.divider()
+        ekg_dict = klasse_ekgdata.EKGData.lade_ekg_nach_id(ekg_id, personen_data)
+        ekg = klasse_ekgdata.EKGData(ekg_dict)
 
-    herzrate_gesamt, herzrate_bereich = ekg.herzrate()
+        if ekg.df.empty:
+            st.error("EKG-Datei konnte nicht geladen werden oder ist leer")
+            st.stop()
+        ekg.zeitbereich(None, None, abtastrate)
 
-    st.metric("Herzrate gesamt [BPM]", round(herzrate_gesamt, 2))
-    st.metric("Herzrate im Bereich [BPM]", round(herzrate_bereich, 2))
+        tab_signal, tab_hr, tab_hrv = st.tabs(["Signal", "Herzrate", "HRV"])
 
-    st.subheader("Herzvariabilität [HRV]")
+        with tab_signal:
+            st.subheader("Zeitbereich auswählen")
+            start, ende = st.slider("Zeitfenster", 0, math.ceil(ekg.zeitreihe_dauer()), (0, 20))
+            ekg.zeitbereich(start, ende, abtastrate)
 
-    herzvariabilität_gesamt = ekg.herzratenvariabilität()
-    herzvariabilität_bereich = ekg.herzratenvariabilität_bereich()
+            st.plotly_chart(ekg.anzeigen_signale())
+            st.metric("Länge der Zeitreihe [s]", round(ekg.zeitreihe_dauer(), 2))
+            st.metric("Testdatum", ekg.test_datum())
+            st.metric("Dateipfad", ekg.pfad)
+        
+       
+        with tab_hr:
+            st.subheader("Herzrate [BPM]")
+            herzrate_gesamt, herzrate_bereich = ekg.herzrate()
 
-    st.write("**HRV gesamt:**", herzvariabilität_gesamt)
-    st.write("**HRV Bereich:**", herzvariabilität_bereich)
+            st.metric("Herzrate gesamt [BPM]", round(herzrate_gesamt, 2))
+            st.metric("Herzrate im Bereich [BPM]", round(herzrate_bereich, 2))
+            if herzrate_bereich == 0:
+                st.warning("Herzrate im Bereich konnte nicht berechnet werden – zu wenige Peaks im ausgewählten Zeitfenster.")
+            st.plotly_chart(ekg.plot_herzrate())
+        
+    
+        with tab_hrv:
+            st.subheader("Herzvariabilität [HRV]")
+
+            col_left, col_right = st.columns(2)
+
+    # -----------------------------
+    # HRV GESAMTER BEREICH
+    # -----------------------------
+            with col_left:
+                st.write("**HRV gesamter Bereich:**")
+
+                hrv_gesamt = ekg.herzratenvariabilität()
+
+        # Falls die Funktion None zurückgibt
+                if hrv_gesamt is None:
+                    st.warning("HRV gesamt konnte nicht berechnet werden – Signal leer oder Abtastrate nicht gesetzt.")
+        # Falls Dictionary mit None-Werten zurückkommt
+                elif hrv_gesamt.get("HRV_MeanNN") is None:
+                    st.warning("HRV gesamt konnte nicht berechnet werden – zu wenige Peaks oder schlechte Signalqualität.")
+                else:
+                    st.metric("HRV MeanNN [s]", round(hrv_gesamt["HRV_MeanNN"] / 1000, 3))
+                    st.metric("HRV MinNN [s]", round(hrv_gesamt["HRV_MinNN"] / 1000, 3))
+                    st.metric("HRV MaxNN [s]", round(hrv_gesamt["HRV_MaxNN"] / 1000, 3))
+
+    # -----------------------------
+    # HRV AUSGEWÄHLTER BEREICH
+    # -----------------------------
+            with col_right:
+                st.write("**HRV – ausgewählter Bereich:**")
+
+                hrv_bereich = ekg.herzratenvariabilität_bereich()
+
+                if hrv_bereich is None:
+                    st.warning("HRV im Bereich konnte nicht berechnet werden – Signal leer oder Abtastrate nicht gesetzt.")
+                elif hrv_bereich.get("HRV_MeanNN") is None:
+                    st.warning("HRV im Bereich konnte nicht berechnet werden – zu wenige Peaks im Zeitfenster.")
+                else:
+                    st.metric("HRV MeanNN [s]", round(hrv_bereich["HRV_MeanNN"] / 1000, 3))
+                    st.metric("HRV MinNN [s]", round(hrv_bereich["HRV_MinNN"] / 1000, 3))
+                    st.metric("HRV MaxNN [s]", round(hrv_bereich["HRV_MaxNN"] / 1000, 3))
 
 
-
-
-
-
-
+            
+            
 
 
 
@@ -243,7 +298,8 @@ if selected == "CSV Analyse":
             st.metric ("Max Leistung [W]", zonen_einteilung.maximale_leistung(df))
         with fenster_zoneninfo:
             daten = zonen_einteilung.leistung_zeit_in_zonen(df, max_hf)
-            df_zonen = pd.DataFrame(daten).set_index("Zone")
+            df_zonen = pd.DataFrame(daten).set_index("Trainingsbereich")
+            st.dataframe(df_zonen)
 
     with fenster_power:
         df_power = power_curve.aktivitaet_einlesen()
