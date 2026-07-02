@@ -65,7 +65,7 @@
         "date_of_birth": "2006-13-01",
         "firstname": "Lenn",
         "lastname": "Oßwald",
-        "picture_path": "data/pictures/Lenn_Oßwalt.jpeg",
+        "picture_path": "data/pictures/7_Lenn_Oßwald_final.jpg",
         "ekg_tests": [
             {
                 "id": 6,
@@ -78,5 +78,13 @@
                 "result_link": ""
             }
         ]
+    },
+    {
+        "id": 6,
+        "firstname": "Florian",
+        "lastname": "Vogel",
+        "date_of_birth": "1991-07-04",
+        "picture_path": null,
+        "ekg_tests": []
     }
 ]
