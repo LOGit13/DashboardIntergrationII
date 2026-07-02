@@ -1,5 +1,6 @@
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import neurokit2 as nk
@@ -62,17 +63,35 @@ class EKGData:
         df = self.df_plot()
         return df[(df["Zeit"] >= self.start) & (df["Zeit"] <= self.ende)].reset_index(drop=True)
     
-    def peaks(self, grenze=0.5):
-        if self.df.empty:
-            self.peaks_alle = []
-            self.peaks_teil = []
-            return
-        df_all = self.df_plot()
-        self.peaks_alle, _ = find_peaks(df_all["Messwert"], height=grenze)
+    def peaks(self):
+    # Messwerte und Zeit aus dem DataFrame holen
+        werte = self.df["Messwert"].to_numpy()
+        zeit = self.df["Zeit"].to_numpy()
 
-        df_part = self.df_bereich()
-        self.peaks_teil, _ = find_peaks(df_part["Messwert"], height=grenze)
+    # Zeitabstand zwischen Samples (in ms)
+        ms_pro_sample = np.mean(np.diff(zeit))
 
+    # Mindestabstand zwischen Peaks (300 ms)
+        min_distance_samples = int(300 / ms_pro_sample)
+
+    # Dynamischer Schwellenwert: Mittelwert + Standardabweichung
+        schwelle = np.mean(werte) + np.std(werte)
+
+    # Peaks finden
+        peaks, _ = find_peaks(werte, height=schwelle, distance=min_distance_samples)
+
+    # Alle Peaks speichern
+        self.peaks_alle = list(peaks)
+
+    # Peaks im Zeitfenster filtern
+        if self.start is not None and self.ende is not None:
+            self.peaks_teil = [
+                p for p in self.peaks_alle
+                if self.start <= (p / self.rate) <= self.ende
+            ]
+        else:
+            self.peaks_teil = self.peaks_alle
+        
     def anzeigen_signale(self):
         df = self.df_plot()
         self.peaks()
@@ -205,6 +224,55 @@ class EKGData:
         except Exception as e:
             print(f"Fehler in herzratenvariabilität_bereich: {e}")
             return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
+    def pruefe_hrv(self, hrv):
+        # Wenn HRV nicht berechnet werden konnte
+        if hrv is None or hrv.get("HRV_MeanNN") is None:
+            return "danger", "HRV konnte nicht berechnet werden – zu wenige Peaks oder schlechte Signalqualität."
+
+        try:
+            import pandas as pd
+            
+            # HRV-Werte extrahieren und zu Float konvertieren
+            meanNN_raw = hrv["HRV_MeanNN"]
+            minNN_raw = hrv["HRV_MinNN"]
+            maxNN_raw = hrv["HRV_MaxNN"]
+            
+            # Pandas Series zu float konvertieren
+            if isinstance(meanNN_raw, pd.Series):
+                meanNN = float(meanNN_raw.iloc[0]) / 1000
+            else:
+                meanNN = float(meanNN_raw) / 1000
+                
+            if isinstance(minNN_raw, pd.Series):
+                minNN = float(minNN_raw.iloc[0]) / 1000
+            else:
+                minNN = float(minNN_raw) / 1000
+                
+            if isinstance(maxNN_raw, pd.Series):
+                maxNN = float(maxNN_raw.iloc[0]) / 1000
+            else:
+                maxNN = float(maxNN_raw) / 1000
+                
+        except Exception as e:
+            print(f"Fehler bei HRV-Konvertierung: {e}")
+            return "danger", "HRV-Werte konnten nicht verarbeitet werden."
+
+        # Gefährliche Werte prüfen
+        try:
+            if float(minNN) < 0.2 or float(maxNN) > 2.0 or float(meanNN) < 0.4 or float(meanNN) > 1.5:
+                return "danger", (
+                    "Achtung! Die HRV-Werte liegen außerhalb des normalen Bereichs. "
+                    "Dies kann auf Stress, Überlastung, Messfehler oder ungewöhnliche Herzaktivität hinweisen."
+                )
+        except:
+            pass
+
+        # Alles gut
+        return "success", "Die HRV-Werte liegen im normalen Bereich. Das Herz zeigt eine gesunde Anpassungsfähigkeit."
+
+
+
 
 if __name__ == "__main__":
     import json

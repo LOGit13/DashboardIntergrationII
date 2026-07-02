@@ -217,7 +217,6 @@ if selected == "EKG App":
             st.metric("Länge der Zeitreihe [s]", round(ekg.zeitreihe_dauer(), 2))
             st.metric("Testdatum", ekg.test_datum())
             st.metric("Dateipfad", ekg.pfad)
-        
        
         with tab_hr:
             st.subheader("Herzrate [BPM]")
@@ -228,25 +227,20 @@ if selected == "EKG App":
             if herzrate_bereich == 0:
                 st.warning("Herzrate im Bereich konnte nicht berechnet werden – zu wenige Peaks im ausgewählten Zeitfenster.")
             st.plotly_chart(ekg.plot_herzrate())
-        
     
         with tab_hrv:
             st.subheader("Herzvariabilität [HRV]")
 
             col_left, col_right = st.columns(2)
 
-    # -----------------------------
-    # HRV GESAMTER BEREICH
-    # -----------------------------
             with col_left:
                 st.write("**HRV gesamter Bereich:**")
 
                 hrv_gesamt = ekg.herzratenvariabilität()
 
-        # Falls die Funktion None zurückgibt
                 if hrv_gesamt is None:
                     st.warning("HRV gesamt konnte nicht berechnet werden – Signal leer oder Abtastrate nicht gesetzt.")
-        # Falls Dictionary mit None-Werten zurückkommt
+       
                 elif hrv_gesamt.get("HRV_MeanNN") is None:
                     st.warning("HRV gesamt konnte nicht berechnet werden – zu wenige Peaks oder schlechte Signalqualität.")
                 else:
@@ -254,9 +248,6 @@ if selected == "EKG App":
                     st.metric("HRV MinNN [s]", round(hrv_gesamt["HRV_MinNN"] / 1000, 3))
                     st.metric("HRV MaxNN [s]", round(hrv_gesamt["HRV_MaxNN"] / 1000, 3))
 
-    # -----------------------------
-    # HRV AUSGEWÄHLTER BEREICH
-    # -----------------------------
             with col_right:
                 st.write("**HRV – ausgewählter Bereich:**")
 
@@ -271,6 +262,44 @@ if selected == "EKG App":
                     st.metric("HRV MinNN [s]", round(hrv_bereich["HRV_MinNN"] / 1000, 3))
                     st.metric("HRV MaxNN [s]", round(hrv_bereich["HRV_MaxNN"] / 1000, 3))
 
+            status_gesamt, text_gesamt = ekg.pruefe_hrv(hrv_gesamt)
+            status_bereich, text_bereich = ekg.pruefe_hrv(hrv_bereich)
+
+            blink_css = """
+            <style>
+            @keyframes blink {
+            50% { opacity: 0.4; }
+            }
+            .blink-box {
+                animation: blink 1s infinite;
+                padding: 15px;
+                border-radius: 10px;
+                color: white;
+                font-weight: bold;
+                margin-top: 15px;
+            }
+            .blink-red {
+            background-color: #ff4b4b;
+            }
+            .blink-green {
+                background-color: #4CAF50;
+            }
+            </style>
+            """
+
+            st.markdown(blink_css, unsafe_allow_html=True)
+
+    # Wenn einer der beiden Bereiche gefährlich ist → rot
+            if status_gesamt == "danger" or status_bereich == "danger":
+                st.markdown(
+                    f"<div class='blink-box blink-red'>⚠️ WARNUNG<br>{text_gesamt}</div>",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f"<div class='blink-box blink-green'>✔️ Alles in Ordnung<br>{text_gesamt}</div>",
+                    unsafe_allow_html=True
+                )
 
             
             
