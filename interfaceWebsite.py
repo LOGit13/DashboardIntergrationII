@@ -210,10 +210,13 @@ if selected == "EKG App":
 
         with tab_signal:
             st.subheader("Zeitbereich auswählen")
-            start, ende = st.slider("Zeitfenster", 0, math.ceil(ekg.zeitreihe_dauer()), (0, 20))
+            max_zeitfenster = min(600, math.ceil(ekg.zeitreihe_dauer()))
+            start, ende = st.slider("Zeitfenster", 0, max_zeitfenster, (0, 10))
+
             ekg.zeitbereich(start, ende, abtastrate)
 
             st.plotly_chart(ekg.anzeigen_signale())
+            st.markdown("<small style='color: gray;'>Hinweis: Durch Anklicken der Legende können Signal und Peaks ein- oder ausgeblendet werden.</small>",unsafe_allow_html=True)
             st.metric("Länge der Zeitreihe [s]", round(ekg.zeitreihe_dauer(), 2))
             st.metric("Testdatum", ekg.test_datum())
             st.metric("Dateipfad", ekg.pfad)

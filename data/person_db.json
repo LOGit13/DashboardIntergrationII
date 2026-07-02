@@ -78,13 +78,5 @@
                 "result_link": ""
             }
         ]
-    },
-    {
-        "id": 6,
-        "firstname": "Florian",
-        "lastname": "Vogel",
-        "date_of_birth": "1991-07-04",
-        "picture_path": null,
-        "ekg_tests": []
     }
 ]
