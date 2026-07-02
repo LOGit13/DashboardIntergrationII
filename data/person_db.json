@@ -55,8 +55,14 @@
         "ekg_tests": [
             {
                 "id": 5,
-                "date": "25.06.2026",
-                "result_link": ""
+                "date": "11.06.2026",
+                "result_link": "data/ekg_data/ekg_data_23_1.txt"
+            },
+            {
+                "id": 6,
+                "date": "26.06.2026",
+                "result_link": "data/ekg_data/ekg_data_23_2.txt"
+        
             }
         ]
     },
@@ -68,14 +74,15 @@
         "picture_path": "data/pictures/7_Lenn_Oßwald_final.jpg",
         "ekg_tests": [
             {
-                "id": 6,
-                "date": "25.06.2026",
-                "result_link": ""
+                "id": 7,
+                "date": "16.05.2026",
+                "result_link": "data/ekg_data/ekg_data_20_1.txt"
+    
             },
             {
-                "id": 7,
-                "date": "25.06.2026",
-                "result_link": ""
+                "id": 8,
+                "date": "15.06.2026",
+                "result_link": "data/ekg_data/ekg_data_20_2.txt"
             }
         ]
     }
