@@ -3,12 +3,15 @@ import pandas as pd
 import os
 import json
 import math
+import importlib
 from PIL import Image
 from streamlit_option_menu import option_menu
 
 from Personen import daten_einlesen, klasse_person, klasse_ekgdata
 from Personen_Verwaltung import benutzer_verwaltung
 from CSV_analyse import power_curve, zonen_einteilung
+importlib.reload(power_curve)
+importlib.reload(zonen_einteilung)
 import data_sortiert
 
 
@@ -217,7 +220,7 @@ if selected == "EKG App":
 
             st.plotly_chart(ekg.anzeigen_signale())
             st.markdown("<small style='color: gray;'>Hinweis: Durch Anklicken der Legende können Signal und Peaks ein- oder ausgeblendet werden.</small>",unsafe_allow_html=True)
-            st.metric("Länge der Zeitreihe [s]", round(ekg.zeitreihe_dauer(), 2))
+            st.metric("Länge der Zeitreihe [min]", round(ekg.zeitreihe_dauer() / 60, 2))
             st.metric("Testdatum", ekg.test_datum())
             st.metric("Dateipfad", ekg.pfad)
        
@@ -330,6 +333,8 @@ if selected == "CSV Analyse":
         st.plotly_chart(fig)
         st.caption("Hinweis: Durch Anklicken der Legende können Herzfrequenz oder Leistung ein- bzw. ausgeblendet werden.")
 
+        st.metric("CSV-Dauer [min]", round(zonen_einteilung.gesamtdauer_min(df), 2))
+
         if len(anomalien) == 0:
             st.success("Keine Anomalie gefunden. Partien ist gesund.")
         else:
@@ -341,10 +346,10 @@ if selected == "CSV Analyse":
                 df_anom = df_anom.drop(columns=["secondary_y"])
                 df_anom = df_anom.rename(columns={
                     "typ": "Anomalie-Typ",
-                    "x": "Zeitpunkt [s]",
+                    "x": "Zeitpunkt [min]",
                     "y": "Messwert",
                     "beschreibung": "Beschreibung"})
-                df_anom = df_anom[["Anomalie-Typ", "Zeitpunkt [s]", "Messwert", "Achse", "Beschreibung"]]
+                df_anom = df_anom[["Anomalie-Typ", "Zeitpunkt [min]", "Messwert", "Achse", "Beschreibung"]]
                 st.table(df_anom)
 
         fenster_leistung, fenster_zoneninfo = st.tabs(["Leistungswerte", "Zoneninformationen"])
@@ -362,9 +367,9 @@ if selected == "CSV Analyse":
         df_power = power_curve.aktivitaet_einlesen()
         freq = st.number_input("Frequenz:", min_value=1, max_value=20, value=1)
 
-        x_min = st.number_input("X-Min (Sekunden):", min_value=0, max_value=1800, value=0)
-        x_max_raw = st.number_input("X-Max (Sekunden):", min_value=0, max_value=1800, value=300)
-        x_max = x_max_raw + 5
+        x_min = st.number_input("X-Min (Minuten):", min_value=0, max_value=180, value=0)
+        x_max_raw = st.number_input("X-Max (Minuten):", min_value=0, max_value=180, value=5)
+        x_max = x_max_raw + 1
 
         st.plotly_chart(power_curve.plot_powercurve(df_power, x_min, x_max, freq))
         st.plotly_chart(power_curve.zoom_powercurve(df_power, x_min, x_max, freq))

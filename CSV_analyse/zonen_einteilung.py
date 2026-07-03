@@ -4,6 +4,8 @@ import numpy as np
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
+SEKUNDEN_PRO_MINUTE = 60
+
 def aktivitaet_einlesen(dateipfad="data/activity.csv"):
     return pd.read_csv(dateipfad, encoding="utf-8")
 
@@ -16,12 +18,15 @@ def maximale_leistung(df):
 def maximale_herzfrequenz(df):
     return df["HeartRate"].max()
 
-def zeitachse(punkte=1804, dauer_s=None):
+def zeitachse(punkte=1804, dauer_min=None):
     if punkte <= 1:
         return np.array([0.0])
-    if dauer_s is None:
-        return np.arange(punkte, dtype=float)
-    return np.linspace(0.0, float(dauer_s), punkte)
+    if dauer_min is None:
+        return np.arange(punkte, dtype=float) / SEKUNDEN_PRO_MINUTE
+    return np.linspace(0.0, float(dauer_min), punkte)
+
+def gesamtdauer_min(df):
+    return len(df) / SEKUNDEN_PRO_MINUTE
 
 def zonen_berechnung(max_herzfrequenz):
     return [0.50 * max_herzfrequenz, 0.60 * max_herzfrequenz, 0.70 * max_herzfrequenz, 0.80 * max_herzfrequenz, 0.90 * max_herzfrequenz, 1.00 * max_herzfrequenz]
@@ -83,7 +88,7 @@ def ekg_plot(df, max_herzfrequenz, anomalien=None):
 
     fig.update_layout(
         title="EKG und Leistung",
-        xaxis_title="Zeit [s]",
+        xaxis_title="Zeit [min]",
         yaxis_title="Herzfrequenz [BPM]",
         yaxis2_title="Leistung [W]",
         legend=dict(x=1.05, y=1, bordercolor="black", borderwidth=1)
@@ -145,7 +150,7 @@ def erkenne_anomalien(df, zeit=None):
                 "secondary_y": True,
                 "beschreibung": "Leistung fällt kurzzeitig stark ab, obwohl die HF hoch bleibt."})
 
-    fenster = min(60, len(herz) // 4)
+    fenster = min(SEKUNDEN_PRO_MINUTE, len(herz) // 4)
     if len(herz) >= fenster * 2:
         herz_start = np.mean(herz[:fenster])
         herz_ende = np.mean(herz[-fenster:])
