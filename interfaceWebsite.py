@@ -308,8 +308,6 @@ if selected == "EKG App":
             
 
 
-
-
 if selected == "CSV Analyse":
     st.title("CSV Analyse")
 
@@ -320,10 +318,36 @@ if selected == "CSV Analyse":
         st.write(f"Max HF: {max_hf}")
 
         df = zonen_einteilung.aktivitaet_einlesen()
-        fig = zonen_einteilung.ekg_plot(df, max_hf)
-        st.plotly_chart(fig)
+        st.info("Aktuelle CSV-Daten werden für die Analyse verwendet.")
 
-        fenster_leistung, fenster_zoneninfo = st.tabs(["Leistung", "Zoneninfo"])
+        test_anomalien = st.checkbox("Testdaten mit künstlichen Anomalien erzeugen")
+        if test_anomalien:
+            df = zonen_einteilung.inject_test_anomalies(df)
+            st.success("Testanomalien wurden erfolgreich eingebracht. Die Auswirkungen sind im Diagramm sichtbar.")
+
+        anomalien = zonen_einteilung.erkenne_anomalien(df)
+        fig = zonen_einteilung.ekg_plot(df, max_hf, anomalien)
+        st.plotly_chart(fig)
+        st.caption("Hinweis: Durch Anklicken der Legende können Herzfrequenz oder Leistung ein- bzw. ausgeblendet werden.")
+
+        if len(anomalien) == 0:
+            st.success("Keine Anomalie gefunden. Partien ist gesund.")
+        else:
+            with st.expander(f"{len(anomalien)} gefundene Anomalie(n) anzeigen"):
+                df_anom = pd.DataFrame(anomalien)
+                df_anom["x"] = df_anom["x"].apply(lambda v: f"{v:.2f}")
+                df_anom["y"] = df_anom["y"].apply(lambda v: f"{v:.2f}")
+                df_anom["Achse"] = df_anom["secondary_y"].apply(lambda v: "Leistung (rechte Achse)" if v else "Herzfrequenz (linke Achse)")
+                df_anom = df_anom.drop(columns=["secondary_y"])
+                df_anom = df_anom.rename(columns={
+                    "typ": "Anomalie-Typ",
+                    "x": "Zeitpunkt [s]",
+                    "y": "Messwert",
+                    "beschreibung": "Beschreibung"})
+                df_anom = df_anom[["Anomalie-Typ", "Zeitpunkt [s]", "Messwert", "Achse", "Beschreibung"]]
+                st.table(df_anom)
+
+        fenster_leistung, fenster_zoneninfo = st.tabs(["Leistungswerte", "Zoneninformationen"])
 
         with fenster_leistung:
             st.metric ("Ø Leistung [W]", round(zonen_einteilung.mittelwert_leistung(df), 2))
@@ -332,6 +356,7 @@ if selected == "CSV Analyse":
             daten = zonen_einteilung.leistung_zeit_in_zonen(df, max_hf)
             df_zonen = pd.DataFrame(daten).set_index("Trainingsbereich")
             st.dataframe(df_zonen)
+            st.caption("Hinweis: Die Tabelle kann durch Anklicken der Spaltenüberschriften sortiert werden.")
 
     with fenster_power:
         df_power = power_curve.aktivitaet_einlesen()

@@ -16,15 +16,41 @@ def maximale_leistung(df):
 def maximale_herzfrequenz(df):
     return df["HeartRate"].max()
 
-def zeitachse(dauer_s=1805, punkte=1804):
-    return np.linspace(0, dauer_s, punkte)
+def zeitachse(punkte=1804, dauer_s=None):
+    if punkte <= 1:
+        return np.array([0.0])
+    if dauer_s is None:
+        return np.arange(punkte, dtype=float)
+    return np.linspace(0.0, float(dauer_s), punkte)
 
 def zonen_berechnung(max_herzfrequenz):
     return [0.50 * max_herzfrequenz, 0.60 * max_herzfrequenz, 0.70 * max_herzfrequenz, 0.80 * max_herzfrequenz, 0.90 * max_herzfrequenz, 1.00 * max_herzfrequenz]
 
-def ekg_plot(df, max_herzfrequenz):
+def inject_test_anomalies(df):
+    df = df.copy()
+    if len(df) < 10:
+        return df
+
+    n = len(df)
+    mid = n // 2
+    df.loc[mid, "HeartRate"] = df["HeartRate"].iloc[mid - 1] + 45
+
+    dropout_start = max(1, n // 4)
+    df.loc[dropout_start:dropout_start + 2, "PowerOriginal"] = 0
+
+    delay_start = max(1, n // 3)
+    df.loc[delay_start, "PowerOriginal"] = max(df["PowerOriginal"].iloc[delay_start - 1] + 40, df["PowerOriginal"].iloc[delay_start])
+    if delay_start + 5 < n:
+        df.loc[delay_start + 1:delay_start + 5, "HeartRate"] = df["HeartRate"].iloc[delay_start]
+
+    unplausibel_idx = min(n - 2, n * 3 // 4)
+    df.loc[unplausibel_idx, "HeartRate"] = max(df["HeartRate"].mean() + 90, 220)
+
+    return df
+
+def ekg_plot(df, max_herzfrequenz, anomalien=None):
     zonen = zonen_berechnung(max_herzfrequenz)
-    zeit = zeitachse()
+    zeit = zeitachse(len(df))
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(go.Scatter(x=zeit, y=df["HeartRate"], name="Herzfrequenz", line=dict(color="red")), secondary_y=False)
     fig.add_trace(go.Scatter(x=zeit, y=df["PowerOriginal"], name="Leistung", line=dict(color="yellow")), secondary_y=True)
@@ -40,13 +66,28 @@ def ekg_plot(df, max_herzfrequenz):
             opacity=0.3,
             layer="below"
         )
+
+    if anomalien is None:
+        anomalien = erkenne_anomalien(df, zeit)
+
+    for a in anomalien:
+        fig.add_trace(go.Scatter(
+            x=[a["x"]],
+            y=[a["y"]],
+            mode="markers",
+            marker=dict(size=10, color="orange", symbol="x"),
+            name=a["typ"],
+            hovertext=a["beschreibung"],
+            showlegend=False
+        ), secondary_y=a.get("secondary_y", False))
+
     fig.update_layout(
         title="EKG und Leistung",
         xaxis_title="Zeit [s]",
         yaxis_title="Herzfrequenz [BPM]",
         yaxis2_title="Leistung [W]",
-        legend=dict( x=1.05, y=1, bordercolor="black", borderwidth=1)
-         )
+        legend=dict(x=1.05, y=1, bordercolor="black", borderwidth=1)
+    )
 
     return fig
 
@@ -71,3 +112,74 @@ def leistung_zeit_in_zonen(df, max_herzfrequenz):
         "Zeit[min]": zeit_min,
         "Durchschnittsleistung [W]": durchschnitt
     }
+
+def erkenne_anomalien(df, zeit=None):
+    if zeit is None:
+        zeit = zeitachse(len(df))
+
+    anomalien = []
+    herz = df["HeartRate"].to_numpy()
+    leistung = df["PowerOriginal"].to_numpy()
+
+    if len(herz) < 2:
+        return anomalien
+
+    herz_diff = np.diff(herz)
+    leistung_diff = np.diff(leistung)
+
+    for i in range(1, len(herz)):
+        if herz_diff[i - 1] > 20 and abs(leistung[i] - leistung[i - 1]) < 10:
+            anomalien.append({
+                "typ": "HF-Spike",
+                "x": zeit[i],
+                "y": herz[i],
+                "secondary_y": False,
+                "beschreibung": "Plötzlicher HF-Anstieg ohne passende Leistungsänderung."})
+
+    for i in range(len(leistung)):
+        if leistung[i] < 10 and herz[i] > 80 and (i == 0 or leistung[i - 1] > 20):
+            anomalien.append({
+                "typ": "Leistungs-Dropout",
+                "x": zeit[i],
+                "y": leistung[i],
+                "secondary_y": True,
+                "beschreibung": "Leistung fällt kurzzeitig stark ab, obwohl die HF hoch bleibt."})
+
+    fenster = min(60, len(herz) // 4)
+    if len(herz) >= fenster * 2:
+        herz_start = np.mean(herz[:fenster])
+        herz_ende = np.mean(herz[-fenster:])
+        leistung_mittel = np.mean(leistung)
+        if leistung_mittel > 30 and (herz_ende - herz_start) > 10:
+            anomalien.append({
+                "typ": "HF-Drift",
+                "x": zeit[len(zeit) // 2],
+                "y": herz[len(zeit) // 2],
+                "secondary_y": False,
+                "beschreibung": "Langsamer Anstieg der Herzfrequenz bei relativ konstanter Leistung."})
+
+    for i in range(1, len(leistung)):
+        if leistung_diff[i - 1] > 30:
+            j_max = min(i + 10, len(herz) - 1)
+            if herz[j_max] - herz[i] < 5:
+                anomalien.append({
+                    "typ": "Verzögerte HF-Reaktion",
+                    "x": zeit[i],
+                    "y": leistung[i],
+                    "secondary_y": True,
+                    "beschreibung": "Leistung steigt schnell an, die HF folgt aber nur verzögert."})
+
+    for i in range(1, len(herz)):
+        if abs(herz_diff[i - 1]) > 40 or herz[i] < 30 or herz[i] > 220:
+            beschreibung = "Sprunghafte HF-Änderung oder unplausibler Wert."
+            if herz[i] < 30 or herz[i] > 220:
+                beschreibung = "Herzfrequenz liegt außerhalb typischer physiologischer Grenzen."
+            anomalien.append({
+                "typ": "Unplausibler HF-Wert",
+                "x": zeit[i],
+                "y": herz[i],
+                "secondary_y": False,
+                "beschreibung": beschreibung})
+
+    return anomalien
+   
