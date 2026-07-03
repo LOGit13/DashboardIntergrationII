@@ -12,6 +12,7 @@ from Personen_Verwaltung import benutzer_verwaltung
 from CSV_analyse import power_curve, zonen_einteilung
 importlib.reload(power_curve)
 importlib.reload(zonen_einteilung)
+importlib.reload(klasse_ekgdata)
 import data_sortiert
 
 
@@ -213,29 +214,49 @@ if selected == "EKG App":
 
         with tab_signal:
             st.subheader("Zeitbereich auswählen")
-            max_zeitfenster = min(600, math.ceil(ekg.zeitreihe_dauer()))
-            start, ende = st.slider("Zeitfenster", 0, max_zeitfenster, (0, 10))
+            gesamtdauer = ekg.zeitreihe_dauer()
+            max_zeitfenster = math.ceil(gesamtdauer)
+            start, ende = st.slider("Signal-Zeitraum [s]", 0.0, float(max_zeitfenster), (0.0, min(10.0, float(max_zeitfenster))), step=0.1)
 
             ekg.zeitbereich(start, ende, abtastrate)
 
             st.plotly_chart(ekg.anzeigen_signale())
-            st.markdown("<small style='color: gray;'>Hinweis: Durch Anklicken der Legende können Signal und Peaks ein- oder ausgeblendet werden.</small>",unsafe_allow_html=True)
-            st.metric("Länge der Zeitreihe [min]", round(ekg.zeitreihe_dauer() / 60, 2))
+            st.markdown("<small style='color: gray;'>Hinweis: Durch Anklicken der Legende können Signal und Peaks ein- oder ausgeblendet werden.</small>", unsafe_allow_html=True)
+            st.metric("Länge der Zeitreihe [min]", round(gesamtdauer / 60, 2))
             st.metric("Testdatum", ekg.test_datum())
             st.metric("Dateipfad", ekg.pfad)
        
         with tab_hr:
             st.subheader("Herzrate [BPM]")
-            herzrate_gesamt, herzrate_bereich = ekg.herzrate()
+            st.write("Wählen Sie den Zeitbereich für die Herzratenberechnung.")
+            hr_range_start, hr_range_end = st.slider(
+                "Herzrate-Bereich [s]",
+                0.0,
+                float(max_zeitfenster),
+                (0.0, min(10.0, float(max_zeitfenster))),
+                step=0.1,
+            )
 
-            st.metric("Herzrate gesamt [BPM]", round(herzrate_gesamt, 2))
-            st.metric("Herzrate im Bereich [BPM]", round(herzrate_bereich, 2))
+            herzrate_gesamt = ekg.herzrate()
+            herzrate_bereich = ekg.herzrate_bereich(hr_range_start, hr_range_end)
+
+            st.metric("Herzrate gesamt [BPM]", round(herzrate_gesamt, 2) if herzrate_gesamt > 0 else "n/a")
+            st.metric("Herzrate im Bereich [BPM]", round(herzrate_bereich, 2) if herzrate_bereich > 0 else "n/a")
+
+            if herzrate_gesamt == 0:
+                st.warning("Herzrate gesamt konnte nicht berechnet werden – zu wenige Peaks im Signal.")
             if herzrate_bereich == 0:
-                st.warning("Herzrate im Bereich konnte nicht berechnet werden – zu wenige Peaks im ausgewählten Zeitfenster.")
-            st.plotly_chart(ekg.plot_herzrate())
+                st.warning("Herzrate im Bereich konnte nicht berechnet werden – zu wenige Peaks im gewählten Bereich.")
+
+            st.plotly_chart(ekg.plot_herzrate(start=hr_range_start, ende=hr_range_end))
     
         with tab_hrv:
             st.subheader("Herzvariabilität [HRV]")
+
+            # Toggle zum Simulieren kritischer HRV-Werte (für Testzwecke)
+            simulate = st.checkbox("Simuliere kritische HRV-Werte")
+            if simulate:
+                st.info("Kritische HRV-Simulation aktiv: Werte und Plot werden temporär aggressiv angezeigt.")
 
             col_left, col_right = st.columns(2)
 
@@ -243,6 +264,11 @@ if selected == "EKG App":
                 st.write("**HRV gesamter Bereich:**")
 
                 hrv_gesamt = ekg.herzratenvariabilität()
+
+                # Wenn Simulation angefordert, ersetze die echten Werte durch kritische Werte
+                if simulate:
+                    hrv_gesamt = {"HRV_MeanNN": 150.0, "HRV_MinNN": 100.0, "HRV_MaxNN": 2000.0}
+                    st.warning("Kritische HRV-Werte simuliert (gesamter Bereich)")
 
                 if hrv_gesamt is None:
                     st.warning("HRV gesamt konnte nicht berechnet werden – Signal leer oder Abtastrate nicht gesetzt.")
@@ -257,7 +283,11 @@ if selected == "EKG App":
             with col_right:
                 st.write("**HRV – ausgewählter Bereich:**")
 
-                hrv_bereich = ekg.herzratenvariabilität_bereich()
+                hrv_bereich = ekg.herzratenvariabilität_bereich(hr_range_start, hr_range_end)
+
+                if simulate:
+                    hrv_bereich = {"HRV_MeanNN": 150.0, "HRV_MinNN": 100.0, "HRV_MaxNN": 2000.0}
+                    st.warning("Kritische HRV-Werte simuliert (ausgewählter Bereich)")
 
                 if hrv_bereich is None:
                     st.warning("HRV im Bereich konnte nicht berechnet werden – Signal leer oder Abtastrate nicht gesetzt.")
@@ -267,6 +297,9 @@ if selected == "EKG App":
                     st.metric("HRV MeanNN [s]", round(hrv_bereich["HRV_MeanNN"] / 1000, 3))
                     st.metric("HRV MinNN [s]", round(hrv_bereich["HRV_MinNN"] / 1000, 3))
                     st.metric("HRV MaxNN [s]", round(hrv_bereich["HRV_MaxNN"] / 1000, 3))
+
+            # Plot HRV (NN-Intervalle) und Hervorhebung des gewählten Bereichs
+            st.plotly_chart(ekg.plot_hrv(start=hr_range_start, ende=hr_range_end, simulate=simulate))
 
             status_gesamt, text_gesamt = ekg.pruefe_hrv(hrv_gesamt)
             status_bereich, text_bereich = ekg.pruefe_hrv(hrv_bereich)

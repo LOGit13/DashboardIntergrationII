@@ -64,30 +64,26 @@ class EKGData:
         return df[(df["Zeit"] >= self.start) & (df["Zeit"] <= self.ende)].reset_index(drop=True)
     
     def peaks(self):
-    # Messwerte und Zeit aus dem DataFrame holen
-        werte = self.df["Messwert"].to_numpy()
-        zeit = self.df["Zeit"].to_numpy()
+        df = self.df_plot()
+        werte = df["Messwert"].to_numpy()
+        zeit = df["Zeit"].to_numpy()
 
-    # Zeitabstand zwischen Samples (in ms)
-        ms_pro_sample = np.mean(np.diff(zeit))
+        if len(zeit) < 2:
+            self.peaks_alle = []
+            self.peaks_teil = []
+            return
 
-    # Mindestabstand zwischen Peaks (300 ms)
-        min_distance_samples = int(300 / ms_pro_sample)
-
-    # Dynamischer Schwellenwert: Mittelwert + Standardabweichung
+        sekunden_pro_sample = np.mean(np.diff(zeit))
+        min_distance_samples = int(0.3 / sekunden_pro_sample) if sekunden_pro_sample > 0 else 1
         schwelle = np.mean(werte) + np.std(werte)
 
-    # Peaks finden
         peaks, _ = find_peaks(werte, height=schwelle, distance=min_distance_samples)
-
-    # Alle Peaks speichern
         self.peaks_alle = list(peaks)
 
-    # Peaks im Zeitfenster filtern
         if self.start is not None and self.ende is not None:
             self.peaks_teil = [
                 p for p in self.peaks_alle
-                if self.start <= (p / self.rate) <= self.ende
+                if self.start <= df["Zeit"].iloc[p] <= self.ende
             ]
         else:
             self.peaks_teil = self.peaks_alle
@@ -98,50 +94,153 @@ class EKGData:
         fig = go.Figure()
         fig.add_scatter(x=df["Zeit"], y=df["Messwert"], mode="lines", name="Signal")
         if len(self.peaks_alle) > 0:
-            fig.add_scatter(x=df["Zeit"].iloc[self.peaks_alle], y=df["Messwert"].iloc[self.peaks_alle],mode="markers", marker=dict(color="red", size = 10), name= "Peaks")
+            fig.add_scatter(x=df["Zeit"].iloc[self.peaks_alle], y=df["Messwert"].iloc[self.peaks_alle], mode="markers", marker=dict(color="red", size=10), name="Peaks")
         fig.update_xaxes(range=[self.start, self.ende])
         return fig
 
+    def peak_times(self):
+        self.peaks()
+        if not self.peaks_alle:
+            return np.array([])
+        return self.df_plot()["Zeit"].iloc[self.peaks_alle].to_numpy()
+
     def herzrate(self):
-        self.peaks()
+        peak_times = self.peak_times()
+        if len(peak_times) < 2:
+            return 0.0
 
-        if len(self.peaks_alle) > 1:
-            abstand = [self.peaks_alle[i+1] - self.peaks_alle[i] for i in range(len(self.peaks_alle)-1)]
-            herzrate_überall = 60 / ((sum(abstand) / len(abstand)) / self.rate)
-        else:
-            herzrate_überall = 0
+        intervals = np.diff(peak_times)
+        if np.any(intervals <= 0):
+            intervals = intervals[intervals > 0]
+        if len(intervals) == 0:
+            return 0.0
 
-        if len(self.peaks_teil) > 1:
-            abstand_zwei = [self.peaks_teil[i+1] - self.peaks_teil[i] for i in range(len(self.peaks_teil)-1)]
-            herzrate_teil = 60 / ((sum(abstand_zwei) / len(abstand_zwei)) / self.rate)
-        else:
-            herzrate_teil = 0
-        return herzrate_überall, herzrate_teil
-    
-    def plot_herzrate(self, fenster_größe=5):
-        df = self.df_plot()
-        self.peaks()
-        peak_zeiten = df["Zeit"].iloc[self.peaks_alle].tolist()
-        if len(peak_zeiten) < fenster_größe + 1:
+        return 60.0 / np.mean(intervals)
+
+    def herzrate_bereich(self, start, ende):
+        peak_times = self.peak_times()
+        if len(peak_times) < 2:
+            return 0.0
+
+        selected = peak_times[(peak_times >= start) & (peak_times <= ende)]
+        if len(selected) < 2:
+            return 0.0
+
+        intervals = np.diff(selected)
+        if np.any(intervals <= 0):
+            intervals = intervals[intervals > 0]
+        if len(intervals) == 0:
+            return 0.0
+
+        return 60.0 / np.mean(intervals)
+
+    def plot_herzrate(self, start=None, ende=None):
+        # Alle Peak-Zeiten
+        all_peak_times = self.peak_times()
+        if len(all_peak_times) < 2:
             return go.Figure()
-        
-        herzrate_werte = []
-        herzrate_zeiten = []
 
-        for start in range(len(peak_zeiten)-fenster_größe):
-            t0 = peak_zeiten[start]
-            t1 = peak_zeiten[start + fenster_größe]
-            if t1 == t0:
-                continue
+        # Gesamtmittel über das gesamte Signal (wenn möglich) - nur positive Intervalle
+        all_intervals = np.diff(all_peak_times)
+        valid_all = all_intervals > 0
+        all_intervals_valid = all_intervals[valid_all]
+        if len(all_intervals_valid) == 0:
+            return go.Figure()
 
-            bpm = 60 * fenster_größe / (t1-t0)
+        durchschnitt_global = np.mean(60.0 / all_intervals_valid)
 
-            herzrate_werte.append(bpm)
-            herzrate_zeiten.append(t0)
+        # Wähle Peak-Zeiten für die Darstellung (Bereich oder gesamtes Signal)
+        if start is not None and ende is not None:
+            peak_times = all_peak_times[(all_peak_times >= start) & (all_peak_times <= ende)]
+        else:
+            peak_times = all_peak_times
 
+        if len(peak_times) < 2:
+            return go.Figure()
+
+        intervals_all = np.diff(peak_times)
+        valid = intervals_all > 0
+        intervals = intervals_all[valid]
+        if len(intervals) == 0:
+            return go.Figure()
+
+        # Zeitpunkte als Mittelpunkte, nur für gültige Intervalle
+        zeitpunkte_all = (peak_times[:-1] + peak_times[1:]) / 2.0
+        zeitpunkte = zeitpunkte_all[valid]
+
+        herzrate_werte = 60.0 / intervals
+
+        # Erstelle Plot: rohe Herzratenwerte + gleitender Durchschnitt + Gesamtdurchschnitt
         fig = go.Figure()
-        fig.add_scatter(x=herzrate_zeiten, y=herzrate_werte, mode="lines", name="Herzrate", line=dict(color="green"))
-        fig.update_xaxes(range=[self.start, self.ende])
+
+        fig.add_scatter(
+            x=zeitpunkte,
+            y=herzrate_werte,
+            mode="lines+markers",
+            name="Herzrate (instant)",
+            line=dict(color="green"),
+            marker=dict(size=6)
+        )
+
+        # Gleitender Durchschnitt (zeitbasiert approximiert über 5 Sekunden)
+        mean_dt = np.mean(np.diff(zeitpunkte)) if len(zeitpunkte) > 1 else 1.0
+        window_seconds = 5.0
+        window_points = max(1, int(window_seconds / mean_dt))
+        if window_points > 1 and len(herzrate_werte) >= 1:
+            kernel = np.ones(window_points) / float(window_points)
+            gleit = np.convolve(herzrate_werte, kernel, mode="same")
+        else:
+            gleit = herzrate_werte
+
+        fig.add_scatter(
+            x=zeitpunkte,
+            y=gleit,
+            mode="lines",
+            name=f"Gleit. Mittel ({window_seconds:.0f}s)",
+            line=dict(color="blue", width=3)
+        )
+
+        # Bestimme x-range für Durchschnittslinien
+        if start is not None and ende is not None:
+            x0, x1 = float(start), float(ende)
+        elif len(zeitpunkte) > 0:
+            x0, x1 = float(np.min(zeitpunkte)), float(np.max(zeitpunkte))
+        else:
+            x0, x1 = 0.0, 1.0
+
+        # Linie für den globalen Durchschnitt (gesamter Test) als Legendentrace
+        fig.add_scatter(
+            x=[x0, x1],
+            y=[durchschnitt_global, durchschnitt_global],
+            mode="lines",
+            name="Durchschnitt ges. (BPM)",
+            line=dict(color="red", dash="dash"),
+        )
+
+        # Durchschnitt im gewählten Bereich (falls Bereich gesetzt) als Legendentrace
+        if start is not None and ende is not None:
+            durchschnitt_bereich = np.mean(herzrate_werte)
+            fig.add_scatter(
+                x=[x0, x1],
+                y=[durchschnitt_bereich, durchschnitt_bereich],
+                mode="lines",
+                name="Durchschnitt Bereich (BPM)",
+                line=dict(color="orange", dash="dot"),
+            )
+
+        fig.update_layout(
+            title="Herzrate über die Zeit",
+            xaxis_title="Zeit [s]",
+            yaxis_title="Herzrate [BPM]",
+            legend=dict(orientation="v", x=1.02, y=1),
+            margin=dict(r=180)
+        )
+
+        # X-Achse anpassen: benutze übergebenen Bereich, ansonsten interne Einstellungen
+        if start is not None and ende is not None:
+            fig.update_xaxes(range=[start, ende])
+        elif self.start is not None and self.ende is not None:
+            fig.update_xaxes(range=[self.start, self.ende])
         return fig
     
     def test_datum(self):
@@ -152,78 +251,132 @@ class EKGData:
         return self.pfad
     
     def zeitreihe_dauer(self):
-        return len(self.df) / self.rate
-    
+        if self.df.empty:
+            return 0.0
+        df = self.df_plot()
+        if len(df) < 2:
+            return 0.0
+        return float(df["Zeit"].iloc[-1] - df["Zeit"].iloc[0])
+
     def herzratenvariabilität(self):
         # HRV-Berechnung temporär deaktiviert aufgrund von neurokit2-Instabilität
         # Wird nur mit sehr langen Signalen berechnet (>10000 Punkte)
-        if self.df.empty or self.rate is None:
+        # Berechne einfache Zeitbereichs-HRV (Time-domain) aus Peak-Zeiten
+        if self.df.empty:
             return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
 
-        signal = self.df["Messwert"].values
-        
-        # Nur für sehr lange Signale versuchen
-        if len(signal) < 10000:
-            print(f"Signal zu kurz für HRV: {len(signal)} Punkte (mindestens 10000 benötigt)")
+        self.peaks()
+        peak_times = self.peak_times()
+        if len(peak_times) < 2:
             return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
-        
-        try:
-            self.peaks()
-            if len(self.peaks_alle) < 2:
-                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
-            
-            abtastrate = self.rate
-            
-            # Nur R-Peaks erkennen
-            _, rpeaks_info = nk.ecg_peaks(signal, sampling_rate=abtastrate)
-            r_peaks = rpeaks_info.get("ECG_R_Peaks", [])
-            
-            if r_peaks is None or len(r_peaks) < 2:
-                print("Zu wenige R-Peaks gefunden")
-                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
 
-            r_zeiten = r_peaks / abtastrate
-            hrv = nk.hrv_time(r_zeiten, sampling_rate=abtastrate)
-            return hrv
-
-        except Exception as e:
-            print(f"Fehler in herzratenvariabilität: {e}")
+        # RR-Intervalle in Sekunden
+        rr_sec = np.diff(peak_times)
+        rr_sec = rr_sec[rr_sec > 0]
+        if len(rr_sec) == 0:
             return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
+        # Konvertiere in ms (konform zur bisherigen UI, die durch 1000 teilt)
+        rr_ms = rr_sec * 1000.0
+
+        return {
+            "HRV_MeanNN": float(np.mean(rr_ms)),
+            "HRV_MinNN": float(np.min(rr_ms)),
+            "HRV_MaxNN": float(np.max(rr_ms)),
+        }
    
-    def herzratenvariabilität_bereich(self):
-        # HRV-Berechnung für Bereich - temporär deaktiviert
-        if self.df.empty or self.rate is None:
+    def herzratenvariabilität_bereich(self, start=None, ende=None):
+        # HRV für einen angegebenen Bereich (start, ende in Sekunden).
+        if self.df.empty:
             return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
 
-        try:
-            self.peaks()
-            if len(self.peaks_teil) < 2:
-                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
-            
-            df_bereich = self.df_bereich()
-            signal = df_bereich["Messwert"].values
-            
-            # Nur für längere Segmente
-            if len(signal) < 500:
-                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
-            
-            abtastrate = self.rate
+        self.peaks()
+        peak_times = self.peak_times()
 
-            # Nur R-Peaks erkennen
-            _, rpeaks_info = nk.ecg_peaks(signal, sampling_rate=abtastrate)
-            r_peaks = rpeaks_info.get("ECG_R_Peaks", [])
-            
-            if r_peaks is None or len(r_peaks) < 2:
-                return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+        # Wähle peaks innerhalb übergebenem Bereich oder alle
+        if start is None and ende is None:
+            selected = peak_times
+        else:
+            selected = peak_times[(peak_times >= float(start)) & (peak_times <= float(ende))]
 
-            r_zeiten = r_peaks / abtastrate
-            hrv_bereich = nk.hrv_time(r_zeiten, sampling_rate=abtastrate)
-
-            return hrv_bereich
-
-        except Exception as e:
-            print(f"Fehler in herzratenvariabilität_bereich: {e}")
+        if len(selected) < 2:
             return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
+        rr_sec = np.diff(selected)
+        rr_sec = rr_sec[rr_sec > 0]
+        if len(rr_sec) == 0:
+            return {"HRV_MeanNN": None, "HRV_MinNN": None, "HRV_MaxNN": None}
+
+        rr_ms = rr_sec * 1000.0
+        return {
+            "HRV_MeanNN": float(np.mean(rr_ms)),
+            "HRV_MinNN": float(np.min(rr_ms)),
+            "HRV_MaxNN": float(np.max(rr_ms)),
+        }
+
+    def plot_hrv(self, start=None, ende=None, simulate=False):
+        """Plot der NN-Intervalle (ms) über die Zeit mit globalem und Bereichs-Mittel.
+
+        start/ende optional: Bereich zum Hervorheben und Berechnen des Bereichs-Mittel.
+        simulate: Wenn True, verwende kritische Testwerte für Linien und Warnung.
+        """
+        peak_times = self.peak_times()
+        if len(peak_times) < 2:
+            return go.Figure()
+
+        all_rr_sec = np.diff(peak_times)
+        valid = all_rr_sec > 0
+        rr_sec = all_rr_sec[valid]
+        if len(rr_sec) == 0:
+            return go.Figure()
+
+        rr_ms = rr_sec * 1000.0
+        timepoints_all = (peak_times[:-1] + peak_times[1:]) / 2.0
+        timepoints = timepoints_all[valid]
+
+        fig = go.Figure()
+        fig.add_scatter(x=timepoints, y=rr_ms, mode="lines+markers", name="NN-Intervalle [ms]", line=dict(color="purple"))
+
+        # globales Mittel
+        if simulate:
+            global_mean = 150.0
+        else:
+            hrv_global = self.herzratenvariabilität()
+            if hrv_global and hrv_global.get("HRV_MeanNN") is not None:
+                global_mean = float(hrv_global["HRV_MeanNN"])
+            else:
+                global_mean = None
+
+        if global_mean is not None:
+            # Bestimme x-range
+            if start is not None and ende is not None:
+                gx0, gx1 = float(start), float(ende)
+            elif len(timepoints) > 0:
+                gx0, gx1 = float(np.min(timepoints)), float(np.max(timepoints))
+            else:
+                gx0, gx1 = 0.0, 1.0
+            fig.add_scatter(x=[gx0, gx1], y=[global_mean, global_mean], mode="lines", name="Durchschnitt NN ges. (ms)", line=dict(color="red", dash="dash"))
+
+        # Bereichs-Mittel falls Bereich angegeben
+        if start is not None and ende is not None:
+            # Filtere RR nach Zeitpunkten innerhalb Bereich (mittelpunkte)
+            mask = (timepoints >= start) & (timepoints <= ende)
+            if np.any(mask):
+                if simulate:
+                    region_mean = 150.0
+                else:
+                    rr_region = rr_ms[mask]
+                    region_mean = float(np.mean(rr_region))
+                fig.add_scatter(x=[start, ende], y=[region_mean, region_mean], mode="lines", name="Durchschnitt NN Bereich (ms)", line=dict(color="orange", dash="dot"))
+
+            # Bereich schattieren (unter den Daten, ohne Legendeneintrag)
+            fig.add_shape(type="rect", x0=start, x1=ende, y0=0, y1=1, yref="paper", xref="x", fillcolor="LightSalmon", opacity=0.12, layer="below", line_width=0)
+
+        fig.update_layout(title="NN-Intervalle / Herzvariabilität", xaxis_title="Zeit [s]", yaxis_title="NN-Intervall [ms]", legend=dict(orientation="v", x=1.02, y=1), margin=dict(r=180))
+        if start is not None and ende is not None:
+            fig.update_xaxes(range=[start, ende])
+
+        return fig
 
     def pruefe_hrv(self, hrv):
         # Wenn HRV nicht berechnet werden konnte
