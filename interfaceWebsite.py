@@ -1,11 +1,24 @@
+import sys
+import os
+aktueller_ordner = os.path.dirname(os.path.abspath(__file__))
+gpx_ordner = os.path.join(aktueller_ordner, "GPX_Integration")
+if gpx_ordner not in sys.path:
+    sys.path.append(gpx_ordner)
+
+import os
+import sys
+from pathlib import Path
 import streamlit as st
 import pandas as pd
-import os
 import json
 import math
 import importlib
 from PIL import Image
 from streamlit_option_menu import option_menu
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from Personen import daten_einlesen, klasse_person, klasse_ekgdata
 from Personen_Verwaltung import benutzer_verwaltung
@@ -15,11 +28,43 @@ importlib.reload(zonen_einteilung)
 importlib.reload(klasse_ekgdata)
 import data_sortiert
 
+from GPX_Integration.parsers.gpx_parser import gpx_einlesen
+from GPX_Integration.parsers.tcx_parser import tcx_einlesen
+from GPX_Integration.parsers.fit_parser import fit_einlesen
+from GPX_Integration.map.karten_erstellung import karte_erstellen_fuer_streamlit
+import GPX_Integration.logic.plots as plots_module
+import GPX_Integration.logic.hoehenprofil as hoehenprofil_module
+import GPX_Integration.logic.statistik_zusammenfassung as statistik_module
+import GPX_Integration.logic.statistiken as statistiken_module
+import GPX_Integration.database.training_db as training_db_module
+import GPX_Integration.logic.hoehenprofil_interaktiv as hoehenprofil_interaktiv_module
+importlib.reload(plots_module)
+importlib.reload(hoehenprofil_module)
+importlib.reload(statistik_module)
+importlib.reload(statistiken_module)
+importlib.reload(training_db_module)
+importlib.reload(hoehenprofil_interaktiv_module)
+from GPX_Integration.logic.plots import grosser_interaktiver_plot
+from GPX_Integration.logic.hoehenprofil import hoehenprofil_plot
+from GPX_Integration.logic.statistik_zusammenfassung import statistik_zusammenfassung
+from GPX_Integration.logic.statistiken import (
+    gesamt_distanz, gesamt_dauer, hoehenmeter, durchschnitt_puls, maximal_puls,
+    durchschnittsgeschwindigkeit, pace
+)
+from GPX_Integration.database.training_db import (
+    tabellen_erstellen, aktivitaet_speichern_mit_stats, streckenpunkte_speichern_batch, 
+    alle_aktivitaeten_holen, streckenpunkte_holen
+)
+from GPX_Integration.logic.hoehenprofil_interaktiv import (
+    compute_elevation_profile, get_segment_stats, get_point_details_at_index
+)
+
+
 
 with st.sidebar:
     selected = option_menu(
         menu_title="Menü",
-        options=["Startseite", "Personen Verwaltung", "EKG App", "CSV Analyse"],
+        options=["Startseite", "Personen Verwaltung", "EKG App", "CSV Analyse", "Training Leistungen"],
         icons=["house", "people", "activity", "file-earmark-bar-graph"],
         menu_icon="cast",
         default_index=0,
@@ -31,11 +76,18 @@ with st.sidebar:
         }
     )
 
-json_pfad = "data/person_db.json"
-personen_data = daten_einlesen.personen_einlesen(json_pfad)
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+JSON_PFAD = DATA_DIR / "person_db.json"
+ORDNER_EKG = DATA_DIR / "ekg_data"
+ORDNER_SORTIERT = DATA_DIR / "data_sortiert"
+BILDER_DIR = DATA_DIR / "pictures"
+TEMP_DIR = DATA_DIR / "temp"
 
-ordner_ekg = "data/ekg_data"
-ordner_sortiert = "data/data_sortiert"
+for pfad in [DATA_DIR, ORDNER_EKG, ORDNER_SORTIERT, BILDER_DIR, TEMP_DIR]:
+    pfad.mkdir(parents=True, exist_ok=True)
+
+personen_data = daten_einlesen.personen_einlesen(str(JSON_PFAD))
 
 abtastrate = 100
 
@@ -70,7 +122,7 @@ if selected == "Personen Verwaltung":
         bildpfad = None
         if bild_person:
             bildname = f"{person_id}_{bild_person.name}"
-            bildpfad = f"data/pictures/{bildname}"
+            bildpfad = str(BILDER_DIR / bildname)
             with open(bildpfad, "wb") as f:
                 f.write(bild_person.getbuffer())
             st.success(f"Bild {bild_person.name} gespeichert")
@@ -81,7 +133,7 @@ if selected == "Personen Verwaltung":
             ekg_id = benutzer_verwaltung.neue_ekg_id(personen_data)
             ekg_datum = st.text_input("Datum der EKG-Messung")
             ekg_name = f"{person_id}_{ekg_id}_{ekg_datei.name}"
-            ekgpfad = f"data/ekg_data/{ekg_name}"
+            ekgpfad = str(ORDNER_EKG / ekg_name)
             with open(ekgpfad, "wb") as f:
                 f.write(ekg_datei.getbuffer())
             st.success(f"EKG‑Datei {ekg_datei.name} gespeichert")
@@ -97,7 +149,7 @@ if selected == "Personen Verwaltung":
         }
 
         if st.button("Person speichern"):
-            benutzer_verwaltung.benutzer_speichern(json_pfad, person_info)
+            benutzer_verwaltung.benutzer_speichern(str(JSON_PFAD), person_info)
             st.success("Neue Person hinzugefügt")
 
     if option == "Bestehende Nutzer aktualisieren":
@@ -139,7 +191,7 @@ if selected == "Personen Verwaltung":
             person_info["date_of_birth"] = str(geburtsdatum)
 
             if st.button("Änderungen speichern"):
-                benutzer_verwaltung.benutzer_speichern(json_pfad, person_info, aktualisieren=True)
+                benutzer_verwaltung.benutzer_speichern(str(JSON_PFAD), person_info, aktualisieren=True)
                 st.success("Personendaten aktualisiert")
 
     if option == "Nutzer löschen":
@@ -159,7 +211,7 @@ if selected == "Personen Verwaltung":
                 bestaetigung = st.checkbox(f"Ich möchte die Person **{person_info['firstname']} {person_info['lastname']}** wirklich löschen.")
                 if bestaetigung:
                     if st.button("Person endgültig löschen"):
-                        benutzer_verwaltung.person_loeschen(json_pfad, ausgewaelt_id)
+                        benutzer_verwaltung.person_loeschen(str(JSON_PFAD), ausgewaelt_id)
                         st.success("Person wurde erfolgreich gelöscht")    
 
 if selected == "EKG App":
@@ -406,3 +458,236 @@ if selected == "CSV Analyse":
 
         st.plotly_chart(power_curve.plot_powercurve(df_power, x_min, x_max, freq))
         st.plotly_chart(power_curve.zoom_powercurve(df_power, x_min, x_max, freq))
+
+
+if selected == "Training Leistungen":
+    st.title("Training Leistungen")
+    
+    # Datenbank initialisieren
+    tabellen_erstellen()
+    
+    # Tabs für Upload und Verwaltung
+    tab_upload, tab_history = st.tabs(["Neue Aktivität", "Aktivitätsverlauf"])
+    
+    with tab_upload:
+        st.subheader("GPX/TCX/FIT-Datei hochladen")
+        uploaded_file = st.file_uploader(
+            "Wähle eine Datei (GPX, TCX oder FIT)", 
+            type=["gpx", "tcx", "fit"]
+        )
+        
+        if uploaded_file:
+            # Datei speichern
+            temp_path = str(TEMP_DIR / uploaded_file.name)
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            st.success(f"✅ Datei '{uploaded_file.name}' hochgeladen")
+            
+            # Datei einlesen
+            try:
+                if uploaded_file.name.endswith(".gpx"):
+                    punkte = gpx_einlesen(temp_path)
+                elif uploaded_file.name.endswith(".tcx"):
+                    punkte = tcx_einlesen(temp_path)
+                else:
+                    punkte = fit_einlesen(temp_path)
+                
+                if not punkte or len(punkte) == 0:
+                    st.error("❌ Fehler: Keine gültigen Streckenpunkte in der Datei gefunden")
+                    st.stop()
+                
+                st.info(f"📍 {len(punkte)} Streckenpunkte geladen")
+                
+                # Sportart-Auswahl
+                st.subheader("Trainingsart")
+                sportarten = ["🏃 Laufen", "🚴 Radfahren", "🥾 Wandern", "🏊 Schwimmen"]
+                sportart_selected = st.radio("Wähle deine Trainingsart:", sportarten)
+                sportart_key = sportart_selected.split()[-1]  # "Laufen", "Radfahren", etc.
+                
+                # Aktivitätsname
+                default_name = f"{sportart_key} - {pd.Timestamp.now().strftime('%d.%m.%Y %H:%M')}"
+                aktivitaet_name = st.text_input("Name der Aktivität:", value=default_name)
+                
+                # Statistiken berechnen
+                try:
+                    distanz_km = gesamt_distanz(punkte)
+                    dauer_sek = gesamt_dauer(punkte)
+                    hm_pos, hm_neg = hoehenmeter(punkte)
+                    puls_avg = durchschnitt_puls(punkte)
+                    puls_max = maximal_puls(punkte)
+                    geschw = durchschnittsgeschwindigkeit(distanz_km, dauer_sek)
+                    pace_min_km = pace(distanz_km, dauer_sek)
+                    
+                    # Karte anzeigen
+                    st.subheader("Trainingsroute")
+                    try:
+                        karte = karte_erstellen_fuer_streamlit(punkte)
+                        st.components.v1.html(karte.get_root().render(), height=500)
+                    except Exception as e:
+                        st.warning(f"⚠️ Karte konnte nicht erstellt werden: {e}")
+                    
+                    # Statistiken in Spalten anzeigen
+                    st.subheader("Trainingsstatistiken")
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        st.metric("Distanz", f"{distanz_km:.2f} km" if distanz_km else "N/A")
+                    with col2:
+                        st.metric("Dauer", 
+                                  f"{int(dauer_sek // 3600):02d}:{int((dauer_sek % 3600) // 60):02d}:{int(dauer_sek % 60):02d}" 
+                                  if dauer_sek else "N/A")
+                    with col3:
+                        st.metric("Höhenmeter (↑)", f"{hm_pos:.0f} m" if hm_pos else "N/A")
+                    with col4:
+                        st.metric("Höhenmeter (↓)", f"{hm_neg:.0f} m" if hm_neg else "N/A")
+                    
+                    col5, col6, col7 = st.columns(3)
+                    
+                    with col5:
+                        st.metric("Ø-Geschwindigkeit", f"{geschw:.2f} km/h" if geschw else "N/A")
+                    with col6:
+                        st.metric("Ø-Puls", f"{puls_avg:.0f} BPM" if puls_avg else "N/A")
+                    with col7:
+                        st.metric("Max-Puls", f"{puls_max} BPM" if puls_max else "N/A")
+                    
+                    # Höhenprofil (interaktiv)
+                    st.subheader("Höhenprofil (Interaktiv)")
+                    
+                    try:
+                        profile = compute_elevation_profile(punkte)
+                        stats = get_segment_stats(punkte)
+                        
+                        if profile and len(profile) > 0:
+                            # Schieberegler für Punkt-Details
+                            selected_index = st.slider(
+                                "Klicke auf einen Punkt im Profil:",
+                                0, 
+                                len(profile) - 1,
+                                0
+                            )
+                            
+                            point_details = get_point_details_at_index(profile, selected_index)
+                            
+                            if point_details:
+                                info_col1, info_col2, info_col3 = st.columns(3)
+                                with info_col1:
+                                    st.metric("Kilometer", f"{point_details['km']:.2f}")
+                                with info_col2:
+                                    st.metric("Höhe", f"{point_details['hoehe']:.0f} m")
+                                with info_col3:
+                                    if point_details['anstieg_prozent'] > 0:
+                                        st.metric("Anstieg", f"{point_details['anstieg_prozent']:.1f}%")
+                                    else:
+                                        st.metric("Gefälle", f"{point_details['gefaelle_prozent']:.1f}%")
+                            
+                            # Plotly-Chart für Höhenprofil
+                            import plotly.graph_objects as go
+                            fig_profile = go.Figure()
+                            
+                            kms = [p['km'] for p in profile]
+                            hoehen = [p['hoehe'] for p in profile]
+                            
+                            fig_profile.add_trace(go.Scatter(
+                                x=kms, 
+                                y=hoehen,
+                                mode='lines',
+                                fill='tozeroy',
+                                line=dict(color='#1f77b4', width=3),
+                                name='Höhe'
+                            ))
+                            
+                            # Highlight für ausgewählten Punkt
+                            if 0 <= selected_index < len(profile):
+                                fig_profile.add_trace(go.Scatter(
+                                    x=[profile[selected_index]['km']],
+                                    y=[profile[selected_index]['hoehe']],
+                                    mode='markers',
+                                    marker=dict(size=12, color='red'),
+                                    name='Aktueller Punkt'
+                                ))
+                            
+                            fig_profile.update_layout(
+                                title="Höhenverlauf",
+                                xaxis_title="Distanz (km)",
+                                yaxis_title="Höhe (m)",
+                                hovermode='x unified',
+                                height=400
+                            )
+                            
+                            st.plotly_chart(fig_profile, use_container_width=True)
+                            
+                            # Höhenprofil-Statistiken
+                            st.caption(f"Min: {stats['min_hoehe']:.0f}m | Max: {stats['max_hoehe']:.0f}m | "
+                                     f"Total ↑: {stats['total_stieg']:.0f}m | Total ↓: {stats['total_fall']:.0f}m")
+                        else:
+                            st.warning("Keine Höhendaten vorhanden")
+                    
+                    except Exception as e:
+                        st.warning(f"Höhenprofil konnte nicht erstellt werden: {e}")
+                    
+                    # Speichern-Button
+                    if st.button("Aktivität speichern", type="primary"):
+                        try:
+                            aktivitaet_id = aktivitaet_speichern_mit_stats(
+                                name=aktivitaet_name,
+                                datum=pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                sportart=sportart_key,
+                                dauer_sek=dauer_sek,
+                                distanz_km=distanz_km,
+                                hoehenmeter_positiv=hm_pos,
+                                hoehenmeter_negativ=hm_neg,
+                                puls_durchschnitt=puls_avg,
+                                puls_max=puls_max,
+                                geschwindigkeit_kmh=geschw,
+                                pace_min_km=pace_min_km
+                            )
+                            
+                            streckenpunkte_speichern_batch(aktivitaet_id, punkte)
+                            
+                            st.success(f"Aktivität '{aktivitaet_name}' wurde erfolgreich gespeichert!")
+                            st.balloons()
+                        
+                        except Exception as e:
+                            st.error(f"Fehler beim Speichern: {e}")
+                
+                except Exception as e:
+                    st.error(f"Fehler bei der Statistik-Berechnung: {e}")
+            
+            except Exception as e:
+                st.error(f"Fehler beim Einlesen der Datei: {e}")
+    
+    with tab_history:
+        st.subheader("Deine Aktivitäten")
+        
+        try:
+            aktivitaeten = alle_aktivitaeten_holen()
+            
+            if not aktivitaeten or len(aktivitaeten) == 0:
+                st.info("📌 Noch keine Aktivitäten gespeichert. Lade eine Datei hoch!")
+            else:
+                # Nach Sportart filtern
+                sportarten_liste = list(set([a['sportart'] for a in aktivitaeten]))
+                selected_sportart = st.multiselect("Nach Sportart filtern:", sportarten_liste, default=sportarten_liste)
+                
+                filtered = [a for a in aktivitaeten if a['sportart'] in selected_sportart]
+                
+                # Tabelle anzeigen
+                display_data = []
+                for a in filtered:
+                    display_data.append({
+                        "Datum": a['datum'],
+                        "Name": a['name'],
+                        "Sportart": a['sportart'],
+                        "Distanz (km)": f"{a['distanz_km']:.2f}" if a['distanz_km'] else "N/A",
+                        "Dauer": f"{int(a['dauer_sek'] // 3600):02d}:{int((a['dauer_sek'] % 3600) // 60):02d}:{int(a['dauer_sek'] % 60):02d}" if a['dauer_sek'] else "N/A",
+                        "Ø Speed (km/h)": f"{a['geschwindigkeit_kmh']:.2f}" if a['geschwindigkeit_kmh'] else "N/A",
+                        "Höhenmeter (↑)": f"{a['hoehenmeter_positiv']:.0f}" if a['hoehenmeter_positiv'] else "N/A"
+                    })
+                
+                st.dataframe(display_data, use_container_width=True)
+                st.caption(f"Insgesamt {len(filtered)} Aktivitäten angezeigt")
+        
+        except Exception as e:
+            st.error(f"Fehler beim Laden der Aktivitäten: {e}")
+
