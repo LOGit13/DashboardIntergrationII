@@ -73,27 +73,6 @@ st.session_state.setdefault("bg_mime", None)
 
 # Apply theme CSS early so it persists when switching pages
 _apply_theme_css()
-from Personen import daten_einlesen, klasse_person, klasse_ekgdata
-from Personen_Verwaltung import benutzer_verwaltung
-from CSV_analyse import power_curve, zonen_einteilung
-from GPX_Integration.parsers.gpx_parser import gpx_einlesen
-from GPX_Integration.parsers.tcx_parser import tcx_einlesen
-from GPX_Integration.parsers.fit_parser import fit_einlesen
-from GPX_Integration.map.karten_erstellung import karte_erstellen_fuer_streamlit
-import GPX_Integration.logic.statistiken as statistiken_module
-import GPX_Integration.database.training_db as training_db_module
-import GPX_Integration.logic.hoehenprofil_interaktiv as hoehenprofil_interaktiv_module
-from GPX_Integration.logic.statistiken import (
-    gesamt_distanz, gesamt_dauer, hoehenmeter, durchschnitt_puls, maximal_puls,
-    durchschnittsgeschwindigkeit, pace
-)
-from GPX_Integration.database.training_db import (
-    tabellen_erstellen, aktivitaet_speichern_mit_stats, streckenpunkte_speichern_batch, 
-    alle_aktivitaeten_holen
-)
-from GPX_Integration.logic.hoehenprofil_interaktiv import (
-    compute_elevation_profile, get_segment_stats, get_point_details_at_index
-)
 
 # Setup Python path für GPX_Integration
 aktueller_ordner = os.path.dirname(os.path.abspath(__file__))
@@ -104,15 +83,6 @@ if gpx_ordner not in sys.path:
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-
-importlib.reload(power_curve)
-importlib.reload(zonen_einteilung)
-importlib.reload(klasse_ekgdata)
-importlib.reload(statistiken_module)
-importlib.reload(training_db_module)
-importlib.reload(hoehenprofil_interaktiv_module)
-
-
 
 with st.sidebar:
     selected = option_menu(
