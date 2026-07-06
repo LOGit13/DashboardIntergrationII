@@ -32,21 +32,12 @@ from GPX_Integration.parsers.gpx_parser import gpx_einlesen
 from GPX_Integration.parsers.tcx_parser import tcx_einlesen
 from GPX_Integration.parsers.fit_parser import fit_einlesen
 from GPX_Integration.map.karten_erstellung import karte_erstellen_fuer_streamlit
-import GPX_Integration.logic.plots as plots_module
-import GPX_Integration.logic.hoehenprofil as hoehenprofil_module
-import GPX_Integration.logic.statistik_zusammenfassung as statistik_module
 import GPX_Integration.logic.statistiken as statistiken_module
 import GPX_Integration.database.training_db as training_db_module
 import GPX_Integration.logic.hoehenprofil_interaktiv as hoehenprofil_interaktiv_module
-importlib.reload(plots_module)
-importlib.reload(hoehenprofil_module)
-importlib.reload(statistik_module)
 importlib.reload(statistiken_module)
 importlib.reload(training_db_module)
 importlib.reload(hoehenprofil_interaktiv_module)
-from GPX_Integration.logic.plots import grosser_interaktiver_plot
-from GPX_Integration.logic.hoehenprofil import hoehenprofil_plot
-from GPX_Integration.logic.statistik_zusammenfassung import statistik_zusammenfassung
 from GPX_Integration.logic.statistiken import (
     gesamt_distanz, gesamt_dauer, hoehenmeter, durchschnitt_puls, maximal_puls,
     durchschnittsgeschwindigkeit, pace
