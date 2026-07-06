@@ -7,6 +7,74 @@ import streamlit as st
 import pandas as pd
 from PIL import Image
 from streamlit_option_menu import option_menu
+import base64
+import json
+# -----------------------------
+# Theme / Hintergrund Controls
+# -----------------------------
+def _apply_theme_css():
+    theme = st.session_state.get("theme", "Weiß")
+    bg_bytes = st.session_state.get("bg_image_bytes")
+    bg_mime = st.session_state.get("bg_mime", "image/png")
+
+    # Default (Weiß) — keine farbliche Änderung
+    left_color = "transparent"
+    right_color = "transparent"
+    sidebar_text = "inherit"
+
+    if theme == "Rot":
+        left_color = "#7B1E2D"      # Weinrot (dunkel)
+        right_color = "#FFEDEE"     # sehr helles Rot
+        sidebar_text = "#ffffff"
+    elif theme == "Blau":
+        left_color = "#1F4E79"      # dunkles Blau
+        right_color = "#EAF3FF"     # sehr helles Blau
+        sidebar_text = "#ffffff"
+
+    css = f"""
+    <style>
+    /* Sidebar background */
+    [data-testid="stSidebar"] {{
+        background-color: {left_color} !important;
+    }}
+
+    /* Main app area background (color) */
+    [data-testid="stAppViewContainer"] {{
+        background-color: {right_color} !important;
+    }}
+
+    /* Ensure good contrast for sidebar text when using dark backgrounds */
+    [data-testid="stSidebar"] * {{
+        color: {sidebar_text} !important;
+    }}
+
+    /* If a background image is set, use it for the app container */
+    """
+
+    if bg_bytes:
+        try:
+            b64 = base64.b64encode(bg_bytes).decode()
+            css += f"\n[data-testid=\"stAppViewContainer\"] {{ background-image: url(\"data:{bg_mime};base64,{b64}\") !important; background-size: cover !important; background-position: center !important; }}\n"
+            # Add a faint overlay to keep content readable over bright/dark images
+            css += "\n[data-testid=\"stAppViewContainer\"]::before { content: \"\"; position: absolute; inset: 0; background: rgba(255,255,255,0.15); pointer-events: none; }\n"
+        except Exception:
+            # If encoding fails, ignore background image
+            pass
+
+    css += "</style>"
+
+    st.markdown(css, unsafe_allow_html=True)
+
+
+# Ensure session state keys exist early so they persist across reruns
+if "theme" not in st.session_state:
+    st.session_state["theme"] = "Weiß"
+if "bg_image_bytes" not in st.session_state:
+    st.session_state["bg_image_bytes"] = None
+if "bg_mime" not in st.session_state:
+    st.session_state["bg_mime"] = None
+
+# Note: apply CSS only after loading persisted settings (below)
 from Personen import daten_einlesen, klasse_person, klasse_ekgdata
 from Personen_Verwaltung import benutzer_verwaltung
 from CSV_analyse import power_curve, zonen_einteilung
@@ -74,6 +142,53 @@ TEMP_DIR = DATA_DIR / "temp"
 for pfad in [DATA_DIR, ORDNER_EKG, ORDNER_SORTIERT, BILDER_DIR, TEMP_DIR]:
     pfad.mkdir(parents=True, exist_ok=True)
 
+# UI settings persistence
+SETTINGS_FILE = DATA_DIR / ".ui_settings.json"
+
+def load_ui_settings():
+    try:
+        if SETTINGS_FILE.exists():
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            theme = cfg.get("theme")
+            if theme:
+                st.session_state["theme"] = theme
+
+            bg_path = cfg.get("bg_path")
+            if bg_path:
+                full = DATA_DIR / bg_path
+                if full.exists():
+                    with open(full, "rb") as bf:
+                        st.session_state["bg_image_bytes"] = bf.read()
+                    # guess mime from extension
+                    if str(full).lower().endswith(".jpg") or str(full).lower().endswith(".jpeg"):
+                        st.session_state["bg_mime"] = "image/jpeg"
+                    else:
+                        st.session_state["bg_mime"] = "image/png"
+                    st.session_state["bg_saved_path"] = bg_path
+    except Exception:
+        pass
+
+
+def save_ui_settings():
+    try:
+        data = {"theme": st.session_state.get("theme", "Weiß")}
+        if st.session_state.get("bg_saved_path"):
+            data["bg_path"] = st.session_state.get("bg_saved_path")
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+# Load persisted UI settings (if any) and apply CSS
+load_ui_settings()
+_apply_theme_css()
+
+
+def _on_theme_change():
+    save_ui_settings()
+    _apply_theme_css()
+
 personen_data = daten_einlesen.personen_einlesen(str(JSON_PFAD))
 
 abtastrate = 100
@@ -91,6 +206,68 @@ Die Website dient als zentrale Plattform zur Verwaltung von Personen und deren E
 - CSV‑Dateien auswerten
 """)
     st.divider()
+    # -----------------------------
+    # Farbmodus & Hintergrund (nur auf der Startseite, ganz unten)
+    # -----------------------------
+    with st.container():
+        st.subheader("Farbmodus & Hintergrund")
+
+        # Theme selector — stored in session_state['theme']
+        _theme_options = ["Weiß", "Rot", "Blau"]
+        _current_theme = st.session_state.get("theme", "Weiß")
+        try:
+            _idx = _theme_options.index(_current_theme)
+        except ValueError:
+            _idx = 0
+
+        st.selectbox(
+            "Farbmodus auswählen",
+            _theme_options,
+            index=_idx,
+            key="theme",
+            on_change=_on_theme_change,
+        )
+
+        # Hintergrund-Bild Upload (wird auf Disk persistiert)
+        uploaded = st.file_uploader("Hintergrundbild hochladen", type=["png", "jpg", "jpeg"], key="bg_uploader")
+        if uploaded is not None:
+            # Bestimme Dateiendung
+            _, ext = os.path.splitext(uploaded.name)
+            if not ext:
+                ext = ".png"
+            filename = f"ui_background{ext}"
+            fullpath = DATA_DIR / filename
+            with open(fullpath, "wb") as f:
+                f.write(uploaded.getbuffer())
+
+            # Update session state and persist settings
+            st.session_state["bg_saved_path"] = filename
+            st.session_state["bg_image_bytes"] = uploaded.getvalue()
+            st.session_state["bg_mime"] = uploaded.type or ("image/jpeg" if ext.lower() in (".jpg", ".jpeg") else "image/png")
+            save_ui_settings()
+            st.success("Hintergrundbild gesetzt")
+            _apply_theme_css()
+
+        if st.button("Hintergrund entfernen"):
+            # Entferne gespeichertes Bild von Disk falls vorhanden
+            try:
+                saved = st.session_state.get("bg_saved_path")
+                if saved:
+                    fp = DATA_DIR / saved
+                    if fp.exists():
+                        fp.unlink()
+            except Exception:
+                pass
+
+            st.session_state["bg_saved_path"] = None
+            st.session_state["bg_image_bytes"] = None
+            st.session_state["bg_mime"] = None
+            save_ui_settings()
+            st.success("Hintergrund entfernt")
+            _apply_theme_css()
+
+        # Re-apply CSS after potential changes so theme persists immediately
+        _apply_theme_css()
 
 
 if selected == "Personen Verwaltung":
@@ -677,4 +854,10 @@ if selected == "Training Leistungen":
         
         except Exception as e:
             st.error(f"Fehler beim Laden der Aktivitäten: {e}")
+
+
+
+
+
+
 
