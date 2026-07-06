@@ -3,6 +3,7 @@ from datetime import datetime
 
 
 def _parse_datetime(value):
+    """Konvertiert verschiedene Datetime-Formate robust in datetime-Objekte."""
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -38,6 +39,7 @@ def _parse_datetime(value):
 
 
 def _wert(p, name):
+    """Extrahiert Werte sicher aus Objekten oder Dictionaries."""
     if p is None:
         return None
     if hasattr(p, name):
@@ -150,9 +152,7 @@ def maximal_puls(streckenpunkte):
 
 
 def durchschnittsgeschwindigkeit(distanz_km, dauer_sek):
-    """
-    km/h
-    """
+    """Berechnet die durchschnittliche Geschwindigkeit in km/h aus Distanz und Dauer."""
     if distanz_km is None or dauer_sek is None:
         return None
 
@@ -161,9 +161,7 @@ def durchschnittsgeschwindigkeit(distanz_km, dauer_sek):
 
 
 def pace(distanz_km, dauer_sek):
-    """
-    Pace in min/km
-    """
+    """Berechnet das Tempo (Pace) in Minuten pro Kilometer aus Distanz und Dauer."""
     if distanz_km is None or dauer_sek is None:
         return None
 

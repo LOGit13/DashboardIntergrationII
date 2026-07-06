@@ -3,6 +3,7 @@ import json
 import pandas as pd
 
 def tab_datei(pfad: str, daten: pd.DataFrame) -> None:
+    """Schreibt einen DataFrame als tabulatorgetrennte Datei (TSV) mit UTF-8 Encoding."""
     with open(pfad, "w", encoding="utf-8") as f:
         for zeile in daten.itertuples(index=False, name=None):
             wert = [str(w) if pd.notna(w) else "" for w in zeile]
@@ -11,6 +12,7 @@ def tab_datei(pfad: str, daten: pd.DataFrame) -> None:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def ekg_data_sortiert(eingabe: str, ausgabe: str, neu: str, alt: str, json_pfad: str, schritt: int = 5):
+    """Dezimiert EKG-Messdaten und aktualisiert deren Pfade in der JSON-Personendatenbank."""
     if not os.path.isabs(json_pfad):
         json_pfad = os.path.join(BASE_DIR, json_pfad)
     if not os.path.isabs(eingabe):

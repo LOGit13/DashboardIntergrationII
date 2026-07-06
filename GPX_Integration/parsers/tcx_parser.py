@@ -25,7 +25,7 @@ def tcx_einlesen(dateipfad):
             zeit = time_tag.text.replace("Z", "+00:00")
             try:
                 zeitpunkt = datetime.fromisoformat(zeit)
-            except:
+            except Exception:
                 zeitpunkt = None
         else:
             zeitpunkt = None

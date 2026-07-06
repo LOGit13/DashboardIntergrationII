@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import neurokit2 as nk
 from scipy.signal import find_peaks
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,7 +16,7 @@ class EKGData:
 
         try:
             self.df = pd.read_csv(self.pfad, sep="\t", header=None, names=["Messwert", "Zeit"])
-        except:
+        except Exception:
             print("Fehler beim Laden der Datei:", self.pfad)
             self.df = pd.DataFrame(columns=["Messwert", "Zeit"])
 
@@ -418,7 +417,7 @@ class EKGData:
                     "Achtung! Die HRV-Werte liegen außerhalb des normalen Bereichs. "
                     "Dies kann auf Stress, Überlastung, Messfehler oder ungewöhnliche Herzaktivität hinweisen."
                 )
-        except:
+        except Exception:
             pass
 
         # Alles gut

@@ -69,7 +69,7 @@ def zonen_berechnen(streckenpunkte, hf_max):
     z2_min, z2_max = hf_max * 0.60, hf_max * 0.70
     z3_min, z3_max = hf_max * 0.70, hf_max * 0.80
     z4_min, z4_max = hf_max * 0.80, hf_max * 0.90
-    z5_min, z5_max = hf_max * 0.90, hf_max * 1.00
+    z5_min, _ = hf_max * 0.90, hf_max * 1.00
 
     # Zeit in jeder Zone
     zonen = {

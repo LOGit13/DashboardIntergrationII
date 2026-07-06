@@ -1,5 +1,4 @@
 from fitparse import FitFile
-from datetime import datetime
 from GPX_Integration.parsers.gpx_parser import Streckenpunkt
 
 def fit_einlesen(dateipfad):
