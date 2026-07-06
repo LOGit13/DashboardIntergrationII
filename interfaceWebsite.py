@@ -77,8 +77,8 @@ _apply_theme_css()
 # Setup Python path für GPX_Integration
 aktueller_ordner = os.path.dirname(os.path.abspath(__file__))
 gpx_ordner = os.path.join(aktueller_ordner, "GPX_Integration")
-if gpx_ordner not in sys.path:
-    sys.path.append(gpx_ordner)
+# Ensure project root is on sys.path (avoid adding subpackage folders which
+# can confuse the import system on case-sensitive/deployed environments).
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
