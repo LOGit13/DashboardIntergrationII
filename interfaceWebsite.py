@@ -67,14 +67,12 @@ def _apply_theme_css():
 
 
 # Ensure session state keys exist early so they persist across reruns
-if "theme" not in st.session_state:
-    st.session_state["theme"] = "Weiß"
-if "bg_image_bytes" not in st.session_state:
-    st.session_state["bg_image_bytes"] = None
-if "bg_mime" not in st.session_state:
-    st.session_state["bg_mime"] = None
+st.session_state.setdefault("theme", "Weiß")
+st.session_state.setdefault("bg_image_bytes", None)
+st.session_state.setdefault("bg_mime", None)
 
-# Note: apply CSS only after loading persisted settings (below)
+# Apply theme CSS early so it persists when switching pages
+_apply_theme_css()
 from Personen import daten_einlesen, klasse_person, klasse_ekgdata
 from Personen_Verwaltung import benutzer_verwaltung
 from CSV_analyse import power_curve, zonen_einteilung
@@ -142,52 +140,125 @@ TEMP_DIR = DATA_DIR / "temp"
 for pfad in [DATA_DIR, ORDNER_EKG, ORDNER_SORTIERT, BILDER_DIR, TEMP_DIR]:
     pfad.mkdir(parents=True, exist_ok=True)
 
-# UI settings persistence
-SETTINGS_FILE = DATA_DIR / ".ui_settings.json"
+# Path for persistent UI settings
+UI_SETTINGS_PATH = DATA_DIR / "ui_settings.json"
 
-def load_ui_settings():
+def load_ui_settings() -> None:
     try:
-        if SETTINGS_FILE.exists():
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-            theme = cfg.get("theme")
-            if theme:
-                st.session_state["theme"] = theme
-
-            bg_path = cfg.get("bg_path")
-            if bg_path:
-                full = DATA_DIR / bg_path
-                if full.exists():
-                    with open(full, "rb") as bf:
-                        st.session_state["bg_image_bytes"] = bf.read()
-                    # guess mime from extension
-                    if str(full).lower().endswith(".jpg") or str(full).lower().endswith(".jpeg"):
-                        st.session_state["bg_mime"] = "image/jpeg"
-                    else:
-                        st.session_state["bg_mime"] = "image/png"
-                    st.session_state["bg_saved_path"] = bg_path
-    except Exception:
-        pass
+        if UI_SETTINGS_PATH.exists():
+            with open(UI_SETTINGS_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Apply loaded values into session_state (overwrite defaults)
+            if "theme" in data and data["theme"] is not None:
+                st.session_state["theme"] = data["theme"]
+            if data.get("bg_image_base64"):
+                try:
+                    st.session_state["bg_image_bytes"] = base64.b64decode(data["bg_image_base64"])
+                    st.session_state["bg_mime"] = data.get("bg_mime", "image/png")
+                except Exception:
+                    st.session_state["bg_image_bytes"] = None
+                    st.session_state["bg_mime"] = None
+            else:
+                st.session_state["bg_image_bytes"] = None
+                st.session_state["bg_mime"] = None
+    except Exception as e:
+        print("Failed to load UI settings:", e)
 
 
-def save_ui_settings():
+def save_ui_settings() -> None:
     try:
-        data = {"theme": st.session_state.get("theme", "Weiß")}
-        if st.session_state.get("bg_saved_path"):
-            data["bg_path"] = st.session_state.get("bg_saved_path")
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f)
-    except Exception:
-        pass
+        payload = {
+            "theme": st.session_state.get("theme", "Weiß"),
+            "bg_image_base64": None,
+            "bg_mime": None,
+        }
+        bg = st.session_state.get("bg_image_bytes")
+        if bg:
+            payload["bg_image_base64"] = base64.b64encode(bg).decode()
+            payload["bg_mime"] = st.session_state.get("bg_mime", "image/png")
 
-# Load persisted UI settings (if any) and apply CSS
+        with open(UI_SETTINGS_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+    except Exception as e:
+        print("Failed to save UI settings:", e)
+
+
+# Callback when theme changes from the widget
+def _on_theme_change():
+    # The widget already updated st.session_state['theme'] — persist and apply CSS
+    _apply_theme_css()
+    save_ui_settings()
+
+
+# Callback when a background file is uploaded (file available via session_state['bg_uploader'])
+def _on_bg_upload():
+    uploaded_obj = st.session_state.get("bg_uploader")
+    try:
+        if uploaded_obj:
+            st.session_state["bg_image_bytes"] = uploaded_obj.getvalue()
+            st.session_state["bg_mime"] = getattr(uploaded_obj, "type", None) or "image/png"
+            save_ui_settings()
+            _apply_theme_css()
+    except Exception as e:
+        print("Error handling background upload:", e)
+
+
+# Load local app modules. Wrap in try/except to show readable errors on deploy
+modules_loaded = True
+# Load persisted UI settings (if present) and apply immediately
 load_ui_settings()
 _apply_theme_css()
+try:
+    from Personen import daten_einlesen, klasse_person, klasse_ekgdata
+    from Personen_Verwaltung import benutzer_verwaltung
+    from CSV_analyse import power_curve, zonen_einteilung
+    from GPX_Integration.parsers.gpx_parser import gpx_einlesen
+    from GPX_Integration.parsers.tcx_parser import tcx_einlesen
+    from GPX_Integration.parsers.fit_parser import fit_einlesen
+    from GPX_Integration.map.karten_erstellung import karte_erstellen_fuer_streamlit
+    import GPX_Integration.logic.statistiken as statistiken_module
+    import GPX_Integration.database.training_db as training_db_module
+    import GPX_Integration.logic.hoehenprofil_interaktiv as hoehenprofil_interaktiv_module
+    from GPX_Integration.logic.statistiken import (
+        gesamt_distanz, gesamt_dauer, hoehenmeter, durchschnitt_puls, maximal_puls,
+        durchschnittsgeschwindigkeit, pace
+    )
+    from GPX_Integration.database.training_db import (
+        tabellen_erstellen, aktivitaet_speichern_mit_stats, streckenpunkte_speichern_batch,
+        alle_aktivitaeten_holen
+    )
+    from GPX_Integration.logic.hoehenprofil_interaktiv import (
+        compute_elevation_profile, get_segment_stats, get_point_details_at_index
+    )
+
+    # Try reloading if modules are already present (non-fatal)
+    try:
+        importlib.reload(power_curve)
+        importlib.reload(zonen_einteilung)
+        importlib.reload(klasse_ekgdata)
+        importlib.reload(statistiken_module)
+        importlib.reload(training_db_module)
+        importlib.reload(hoehenprofil_interaktiv_module)
+    except Exception:
+        # Non-fatal: continue using already-loaded modules or initial imports
+        pass
+except Exception as e:
+    modules_loaded = False
+    import traceback
+    tb = traceback.format_exc()
+    # In deployed app show a clear error instead of white screen
+    try:
+        st.error("Fehler beim Laden von lokalen Modulen. Siehe Logs für Details.")
+        st.text(tb)
+        st.stop()
+    except Exception:
+        # If Streamlit UI isn't available yet, print to stdout so deploy logs capture it
+        print("Fehler beim Laden von lokalen Modulen:")
+        print(tb)
+        raise
 
 
-def _on_theme_change():
-    save_ui_settings()
-    _apply_theme_css()
+# No on-disk persistence: theme/background remain in session_state only
 
 personen_data = daten_einlesen.personen_einlesen(str(JSON_PFAD))
 
@@ -228,40 +299,15 @@ Die Website dient als zentrale Plattform zur Verwaltung von Personen und deren E
             on_change=_on_theme_change,
         )
 
-        # Hintergrund-Bild Upload (wird auf Disk persistiert)
-        uploaded = st.file_uploader("Hintergrundbild hochladen", type=["png", "jpg", "jpeg"], key="bg_uploader")
-        if uploaded is not None:
-            # Bestimme Dateiendung
-            _, ext = os.path.splitext(uploaded.name)
-            if not ext:
-                ext = ".png"
-            filename = f"ui_background{ext}"
-            fullpath = DATA_DIR / filename
-            with open(fullpath, "wb") as f:
-                f.write(uploaded.getbuffer())
-
-            # Update session state and persist settings
-            st.session_state["bg_saved_path"] = filename
-            st.session_state["bg_image_bytes"] = uploaded.getvalue()
-            st.session_state["bg_mime"] = uploaded.type or ("image/jpeg" if ext.lower() in (".jpg", ".jpeg") else "image/png")
-            save_ui_settings()
-            st.success("Hintergrundbild gesetzt")
-            _apply_theme_css()
+        # Hintergrund-Bild Upload (persists to disk)
+        st.file_uploader("Hintergrundbild hochladen", type=["png", "jpg", "jpeg"], key="bg_uploader", on_change=_on_bg_upload)
 
         if st.button("Hintergrund entfernen"):
-            # Entferne gespeichertes Bild von Disk falls vorhanden
-            try:
-                saved = st.session_state.get("bg_saved_path")
-                if saved:
-                    fp = DATA_DIR / saved
-                    if fp.exists():
-                        fp.unlink()
-            except Exception:
-                pass
-
-            st.session_state["bg_saved_path"] = None
             st.session_state["bg_image_bytes"] = None
             st.session_state["bg_mime"] = None
+            # clear uploader value as well
+            if "bg_uploader" in st.session_state:
+                st.session_state["bg_uploader"] = None
             save_ui_settings()
             st.success("Hintergrund entfernt")
             _apply_theme_css()
