@@ -2,19 +2,13 @@
 
 Aufruf: `streamlit run main.py`
 
-Dieser File enthält nur wenig Code; die gesamte App-Logik bleibt in
-`interfaceWebsite.py`.
+Dieser File delegiert direkt an `interfaceWebsite.py`, damit die eigentliche
+App im Streamlit-Skriptkontext ausgeführt wird.
 """
 
-import importlib
-
-# Importiert die existierende App-Datei. Beim Import wird der Streamlit-UI-Code
-# in `interfaceWebsite.py` ausgeführt, sodass `streamlit run main.py` die App
-# startet, ohne die Logik hier duplizieren zu müssen.
-import interfaceWebsite  # noqa: F401
+from pathlib import Path
+import runpy
 
 
-if __name__ == "__main__":
-    # Wenn das Skript direkt mit `python main.py` ausgeführt wird, ist kein
-    # zusätzliches Verhalten nötig — Import hat bereits die App aufgebaut.
-    pass
+APP_PATH = Path(__file__).with_name("interfaceWebsite.py")
+runpy.run_path(str(APP_PATH), run_name="__main__")

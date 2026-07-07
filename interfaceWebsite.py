@@ -1,5 +1,6 @@
 import sys
 import os
+
 from pathlib import Path
 import math
 import importlib
@@ -9,26 +10,51 @@ from PIL import Image
 from streamlit_option_menu import option_menu
 import base64
 import json
-# -----------------------------
-# Theme / Hintergrund Controls
-# -----------------------------
+def _parse_birth_date_for_input(raw_value):
+    """Parst gespeicherte Datumswerte robust fuer st.date_input."""
+    if raw_value is None:
+        return pd.Timestamp("2000-01-01")
+
+    raw_text = str(raw_value).strip()
+    if not raw_text:
+        return pd.Timestamp("2000-01-01")
+
+    known_formats = [
+        "%Y-%m-%d",
+        "%Y-%d-%m",
+        "%d.%m.%Y",
+        "%d-%m-%Y",
+        "%Y/%m/%d",
+        "%d/%m/%Y",
+    ]
+
+    for date_format in known_formats:
+        parsed = pd.to_datetime(raw_text, format=date_format, errors="coerce")
+        if pd.notna(parsed):
+            return parsed
+
+    parsed = pd.to_datetime(raw_text, dayfirst=True, errors="coerce")
+    if pd.notna(parsed):
+        return parsed
+
+    return pd.Timestamp("2000-01-01")
+
 def _apply_theme_css():
     theme = st.session_state.get("theme", "Weiß")
     bg_bytes = st.session_state.get("bg_image_bytes")
     bg_mime = st.session_state.get("bg_mime", "image/png")
 
-    # Default (Weiß) — keine farbliche Änderung
     left_color = "transparent"
     right_color = "transparent"
     sidebar_text = "inherit"
 
     if theme == "Rot":
-        left_color = "#7B1E2D"      # Weinrot (dunkel)
-        right_color = "#FFEDEE"     # sehr helles Rot
+        left_color = "#7B1E2D"     
+        right_color = "#FFEDEE"     
         sidebar_text = "#ffffff"
     elif theme == "Blau":
-        left_color = "#1F4E79"      # dunkles Blau
-        right_color = "#EAF3FF"     # sehr helles Blau
+        left_color = "#1F4E79"      
+        right_color = "#EAF3FF"     
         sidebar_text = "#ffffff"
 
     css = f"""
@@ -55,30 +81,24 @@ def _apply_theme_css():
         try:
             b64 = base64.b64encode(bg_bytes).decode()
             css += f"\n[data-testid=\"stAppViewContainer\"] {{ background-image: url(\"data:{bg_mime};base64,{b64}\") !important; background-size: cover !important; background-position: center !important; }}\n"
-            # Add a faint overlay to keep content readable over bright/dark images
             css += "\n[data-testid=\"stAppViewContainer\"]::before { content: \"\"; position: absolute; inset: 0; background: rgba(255,255,255,0.15); pointer-events: none; }\n"
         except Exception:
-            # If encoding fails, ignore background image
             pass
 
     css += "</style>"
 
     st.markdown(css, unsafe_allow_html=True)
 
-
-# Ensure session state keys exist early so they persist across reruns
 st.session_state.setdefault("theme", "Weiß")
 st.session_state.setdefault("bg_image_bytes", None)
 st.session_state.setdefault("bg_mime", None)
+st.session_state.setdefault("bg_uploader_counter", 0)
+st.session_state.setdefault("bg_uploader_key", "bg_uploader_0")
 
-# Apply theme CSS early so it persists when switching pages
 _apply_theme_css()
 
-# Setup Python path für GPX_Integration
 aktueller_ordner = os.path.dirname(os.path.abspath(__file__))
 gpx_ordner = os.path.join(aktueller_ordner, "GPX_Integration")
-# Ensure project root is on sys.path (avoid adding subpackage folders which
-# can confuse the import system on case-sensitive/deployed environments).
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -110,7 +130,6 @@ TEMP_DIR = DATA_DIR / "temp"
 for pfad in [DATA_DIR, ORDNER_EKG, ORDNER_SORTIERT, BILDER_DIR, TEMP_DIR]:
     pfad.mkdir(parents=True, exist_ok=True)
 
-# Path for persistent UI settings
 UI_SETTINGS_PATH = DATA_DIR / "ui_settings.json"
 
 def load_ui_settings() -> None:
@@ -118,7 +137,6 @@ def load_ui_settings() -> None:
         if UI_SETTINGS_PATH.exists():
             with open(UI_SETTINGS_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            # Apply loaded values into session_state (overwrite defaults)
             if "theme" in data and data["theme"] is not None:
                 st.session_state["theme"] = data["theme"]
             if data.get("bg_image_base64"):
@@ -133,7 +151,6 @@ def load_ui_settings() -> None:
                 st.session_state["bg_mime"] = None
     except Exception as e:
         print("Failed to load UI settings:", e)
-
 
 def save_ui_settings() -> None:
     try:
@@ -152,17 +169,14 @@ def save_ui_settings() -> None:
     except Exception as e:
         print("Failed to save UI settings:", e)
 
-
-# Callback when theme changes from the widget
 def _on_theme_change():
-    # The widget already updated st.session_state['theme'] — persist and apply CSS
     _apply_theme_css()
     save_ui_settings()
 
 
-# Callback when a background file is uploaded (file available via session_state['bg_uploader'])
-def _on_bg_upload():
-    uploaded_obj = st.session_state.get("bg_uploader")
+def _on_bg_upload(uploaded_obj=None):
+    if uploaded_obj is None:
+        uploaded_obj = st.session_state.get(st.session_state.get("bg_uploader_key", "bg_uploader_0"))
     try:
         if uploaded_obj:
             st.session_state["bg_image_bytes"] = uploaded_obj.getvalue()
@@ -173,9 +187,19 @@ def _on_bg_upload():
         print("Error handling background upload:", e)
 
 
-# Load local app modules. Wrap in try/except to show readable errors on deploy
+def _remove_background():
+    st.session_state["bg_image_bytes"] = None
+    st.session_state["bg_mime"] = None
+
+    # FileUploader-Wert wird indirekt geloescht, indem ein neuer Widget-Key verwendet wird.
+    next_counter = int(st.session_state.get("bg_uploader_counter", 0)) + 1
+    st.session_state["bg_uploader_counter"] = next_counter
+    st.session_state["bg_uploader_key"] = f"bg_uploader_{next_counter}"
+
+    save_ui_settings()
+    _apply_theme_css()
+
 modules_loaded = True
-# Load persisted UI settings (if present) and apply immediately
 load_ui_settings()
 _apply_theme_css()
 try:
@@ -200,8 +224,7 @@ try:
     from GPX_Integration.logic.hoehenprofil_interaktiv import (
         compute_elevation_profile, get_segment_stats, get_point_details_at_index
     )
-
-    # Try reloading if modules are already present (non-fatal)
+    
     try:
         importlib.reload(power_curve)
         importlib.reload(zonen_einteilung)
@@ -210,25 +233,22 @@ try:
         importlib.reload(training_db_module)
         importlib.reload(hoehenprofil_interaktiv_module)
     except Exception:
-        # Non-fatal: continue using already-loaded modules or initial imports
+        
         pass
 except Exception as e:
     modules_loaded = False
     import traceback
     tb = traceback.format_exc()
-    # In deployed app show a clear error instead of white screen
+  
     try:
         st.error("Fehler beim Laden von lokalen Modulen. Siehe Logs für Details.")
         st.text(tb)
         st.stop()
     except Exception:
-        # If Streamlit UI isn't available yet, print to stdout so deploy logs capture it
+        
         print("Fehler beim Laden von lokalen Modulen:")
         print(tb)
         raise
-
-
-# No on-disk persistence: theme/background remain in session_state only
 
 personen_data = daten_einlesen.personen_einlesen(str(JSON_PFAD))
 
@@ -238,22 +258,21 @@ if selected == "Startseite":
     st.title("Willkommen zur EKG Analyse App")
     st.subheader("Einführung")
     st.markdown("""
-Die Website dient als zentrale Plattform zur Verwaltung von Personen und deren EKG‑Messdaten.
+Die Website dient als zentrale Plattform zur Verwaltung von Personen und deren EKG‑Messdaten. 
+Des weiteren können Trainingsergebnisse aus GPX, TCX und FIT Dateien analysiert und gespeichert werden.
 
 **Funktionen:**
 - Personen anlegen und bearbeiten  
 - EKG‑Daten hochladen und analysieren  
 - Herzratenvariabilität berechnen  
 - CSV‑Dateien auswerten
+- Trainingseinheiten 
 """)
     st.divider()
-    # -----------------------------
-    # Farbmodus & Hintergrund (nur auf der Startseite, ganz unten)
-    # -----------------------------
+    
     with st.container():
         st.subheader("Farbmodus & Hintergrund")
 
-        # Theme selector — stored in session_state['theme']
         _theme_options = ["Weiß", "Rot", "Blau"]
         _current_theme = st.session_state.get("theme", "Weiß")
         try:
@@ -269,22 +288,22 @@ Die Website dient als zentrale Plattform zur Verwaltung von Personen und deren E
             on_change=_on_theme_change,
         )
 
-        # Hintergrund-Bild Upload (persists to disk)
-        st.file_uploader("Hintergrundbild hochladen", type=["png", "jpg", "jpeg"], key="bg_uploader", on_change=_on_bg_upload)
+        uploaded_bg = st.file_uploader(
+            "Hintergrundbild hochladen",
+            type=["png", "jpg", "jpeg"],
+            key=st.session_state.get("bg_uploader_key", "bg_uploader_0"),
+            on_change=_on_bg_upload,
+        )
+
+        # Direkte Verarbeitung sorgt dafuer, dass das Bild auch ohne Callback-Probleme gesetzt wird.
+        if uploaded_bg is not None:
+            _on_bg_upload(uploaded_bg)
 
         if st.button("Hintergrund entfernen"):
-            st.session_state["bg_image_bytes"] = None
-            st.session_state["bg_mime"] = None
-            # clear uploader value as well
-            if "bg_uploader" in st.session_state:
-                st.session_state["bg_uploader"] = None
-            save_ui_settings()
+            _remove_background()
             st.success("Hintergrund entfernt")
-            _apply_theme_css()
 
-        # Re-apply CSS after potential changes so theme persists immediately
         _apply_theme_css()
-
 
 if selected == "Personen Verwaltung":
     st.title("Personen Verwaltung")
@@ -342,7 +361,10 @@ if selected == "Personen Verwaltung":
         if person_info:
             vorname = st.text_input("Vorname", value=person_info["firstname"])
             nachname = st.text_input("Nachname", value=person_info["lastname"])
-            geburtsdatum = st.date_input("Geburtsdatum", value=pd.to_datetime(person_info["date_of_birth"]))
+            geburtsdatum = st.date_input(
+                "Geburtsdatum",
+                value=_parse_birth_date_for_input(person_info.get("date_of_birth")),
+            )
 
             if st.checkbox("Profilbild ändern"):
                 neues_bild = st.file_uploader("Neues Profilbild hochladen", type=["jpg", "jpeg", "png"])
@@ -432,13 +454,28 @@ if selected == "EKG App":
         st.write("Hier können Sie die EKG-Messungen der ausgewählten Person analysieren.")
 
         ekg_ids = [t["id"] for t in person["ekg_tests"]]
+        if not ekg_ids:
+            st.info(
+                "EKG App lässt sich für diese Person nicht ausführen, weil keine EKG-Daten vorhanden sind. "
+                "Bitte zuerst eine EKG-Messung unter 'Personen Verwaltung' oder über den Upload anlegen."
+            )
+            st.stop()
+
         ekg_id = st.selectbox("EKG-Messung auswählen", ekg_ids)
 
         ekg_dict = klasse_ekgdata.EKGData.lade_ekg_nach_id(ekg_id, personen_data)
+        if ekg_dict is None:
+            st.info(
+                "EKG App lässt sich für diese Person nicht ausführen, weil die ausgewählte EKG-Messung nicht gefunden wurde."
+            )
+            st.stop()
+
         ekg = klasse_ekgdata.EKGData(ekg_dict)
 
         if ekg.df.empty:
-            st.error("EKG-Datei konnte nicht geladen werden oder ist leer")
+            st.info(
+                "EKG App lässt sich für diese Person nicht ausführen, weil die EKG-Datei leer ist oder nicht geladen werden konnte."
+            )
             st.stop()
         ekg.zeitbereich(None, None, abtastrate)
 
@@ -485,7 +522,6 @@ if selected == "EKG App":
         with tab_hrv:
             st.subheader("Herzvariabilität [HRV]")
 
-            # Toggle zum Simulieren kritischer HRV-Werte (für Testzwecke)
             simulate = st.checkbox("Simuliere kritische HRV-Werte")
             if simulate:
                 st.info("Kritische HRV-Simulation aktiv: Werte und Plot werden temporär aggressiv angezeigt.")
@@ -497,7 +533,6 @@ if selected == "EKG App":
 
                 hrv_gesamt = ekg.herzratenvariabilität()
 
-                # Wenn Simulation angefordert, ersetze die echten Werte durch kritische Werte
                 if simulate:
                     hrv_gesamt = {"HRV_MeanNN": 150.0, "HRV_MinNN": 100.0, "HRV_MaxNN": 2000.0}
                     st.warning("Kritische HRV-Werte simuliert (gesamter Bereich)")
@@ -530,7 +565,6 @@ if selected == "EKG App":
                     st.metric("HRV MinNN [s]", round(hrv_bereich["HRV_MinNN"] / 1000, 3))
                     st.metric("HRV MaxNN [s]", round(hrv_bereich["HRV_MaxNN"] / 1000, 3))
 
-            # Plot HRV (NN-Intervalle) und Hervorhebung des gewählten Bereichs
             st.plotly_chart(ekg.plot_hrv(start=hr_range_start, ende=hr_range_end, simulate=simulate))
 
             status_gesamt, text_gesamt = ekg.pruefe_hrv(hrv_gesamt)
@@ -560,7 +594,6 @@ if selected == "EKG App":
 
             st.markdown(blink_css, unsafe_allow_html=True)
 
-    # Wenn einer der beiden Bereiche gefährlich ist → rot
             if status_gesamt == "danger" or status_bereich == "danger":
                 st.markdown(
                     f"<div class='blink-box blink-red'>⚠️ WARNUNG<br>{text_gesamt}</div>",
@@ -643,7 +676,6 @@ if selected == "CSV Analyse":
 if selected == "Training Leistungen":
     st.title("Training Leistungen")
     
-    # Datenbank initialisieren
     tabellen_erstellen()
     
     # Tabs für Upload und Verwaltung
@@ -657,7 +689,6 @@ if selected == "Training Leistungen":
         )
         
         if uploaded_file:
-            # Datei speichern
             temp_path = str(TEMP_DIR / uploaded_file.name)
             with open(temp_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
@@ -699,7 +730,6 @@ if selected == "Training Leistungen":
                     geschw = durchschnittsgeschwindigkeit(distanz_km, dauer_sek)
                     pace_min_km = pace(distanz_km, dauer_sek)
                     
-                    # Karte anzeigen
                     st.subheader("Trainingsroute")
                     try:
                         karte = karte_erstellen_fuer_streamlit(punkte)
@@ -707,7 +737,6 @@ if selected == "Training Leistungen":
                     except Exception as e:
                         st.warning(f"⚠️ Karte konnte nicht erstellt werden: {e}")
                     
-                    # Statistiken in Spalten anzeigen
                     st.subheader("Trainingsstatistiken")
                     col1, col2, col3, col4 = st.columns(4)
                     
@@ -731,7 +760,6 @@ if selected == "Training Leistungen":
                     with col7:
                         st.metric("Max-Puls", f"{puls_max} BPM" if puls_max else "N/A")
                     
-                    # Höhenprofil (interaktiv)
                     st.subheader("Höhenprofil (Interaktiv)")
                     
                     try:
@@ -761,7 +789,6 @@ if selected == "Training Leistungen":
                                     else:
                                         st.metric("Gefälle", f"{point_details['gefaelle_prozent']:.1f}%")
                             
-                            # Plotly-Chart für Höhenprofil
                             import plotly.graph_objects as go
                             fig_profile = go.Figure()
                             
@@ -777,7 +804,6 @@ if selected == "Training Leistungen":
                                 name='Höhe'
                             ))
                             
-                            # Highlight für ausgewählten Punkt
                             if 0 <= selected_index < len(profile):
                                 fig_profile.add_trace(go.Scatter(
                                     x=[profile[selected_index]['km']],
@@ -797,7 +823,6 @@ if selected == "Training Leistungen":
                             
                             st.plotly_chart(fig_profile, use_container_width=True)
                             
-                            # Höhenprofil-Statistiken
                             st.caption(f"Min: {stats['min_hoehe']:.0f}m | Max: {stats['max_hoehe']:.0f}m | "
                                      f"Total ↑: {stats['total_stieg']:.0f}m | Total ↓: {stats['total_fall']:.0f}m")
                         else:
@@ -806,7 +831,6 @@ if selected == "Training Leistungen":
                     except Exception as e:
                         st.warning(f"Höhenprofil konnte nicht erstellt werden: {e}")
                     
-                    # Speichern-Button
                     if st.button("Aktivität speichern", type="primary"):
                         try:
                             aktivitaet_id = aktivitaet_speichern_mit_stats(
@@ -846,13 +870,11 @@ if selected == "Training Leistungen":
             if not aktivitaeten or len(aktivitaeten) == 0:
                 st.info("📌 Noch keine Aktivitäten gespeichert. Lade eine Datei hoch!")
             else:
-                # Nach Sportart filtern
                 sportarten_liste = list(set([a['sportart'] for a in aktivitaeten]))
                 selected_sportart = st.multiselect("Nach Sportart filtern:", sportarten_liste, default=sportarten_liste)
                 
                 filtered = [a for a in aktivitaeten if a['sportart'] in selected_sportart]
                 
-                # Tabelle anzeigen
                 display_data = []
                 for a in filtered:
                     display_data.append({
@@ -867,6 +889,51 @@ if selected == "Training Leistungen":
                 
                 st.dataframe(display_data, use_container_width=True)
                 st.caption(f"Insgesamt {len(filtered)} Aktivitäten angezeigt")
+
+                aktivitaet_lookup = {
+                    f"{a['datum']} | {a['name']} | {a['sportart']} | ID {a['id']}": a
+                    for a in filtered
+                }
+
+                if "show_delete_activity_panel" not in st.session_state:
+                    st.session_state["show_delete_activity_panel"] = False
+
+                st.divider()
+                if st.button("Aktivität löschen"):
+                    st.session_state["show_delete_activity_panel"] = True
+
+                if st.session_state["show_delete_activity_panel"]:
+                    if aktivitaet_lookup:
+                        st.subheader("Aktivität löschen")
+                        zu_loeschen_label = st.selectbox(
+                            "Zu löschende Aktivität auswählen:",
+                            list(aktivitaet_lookup.keys())
+                        )
+                        zu_loeschen = aktivitaet_lookup[zu_loeschen_label]
+
+                        st.warning(
+                            f"Bitte bestätige das Löschen von **{zu_loeschen['name']}** vom **{zu_loeschen['datum']}**. "
+                            "Diese Aktion kann nicht rückgängig gemacht werden."
+                        )
+                        bestaetigung = st.checkbox("Ja, ich möchte diese Aktivität endgültig löschen.")
+                        loeschen_clicked = st.button("Aktivität endgültig löschen", type="primary")
+
+                        if loeschen_clicked:
+                            if not bestaetigung:
+                                st.warning("Bitte bestätige das Löschen zuerst mit dem Kontrollkästchen.")
+                            else:
+                                try:
+                                    geloescht = training_db_module.aktivitaet_loeschen(zu_loeschen["id"])
+                                    if geloescht:
+                                        st.success(f"Aktivität '{zu_loeschen['name']}' wurde gelöscht.")
+                                        st.session_state["show_delete_activity_panel"] = False
+                                        st.rerun()
+                                    else:
+                                        st.info("Die Aktivität konnte nicht gefunden oder nicht gelöscht werden.")
+                                except Exception as e:
+                                    st.error(f"Fehler beim Löschen der Aktivität: {e}")
+                    else:
+                        st.info("Für die aktuell gefilterte Ansicht gibt es keine Aktivitäten zum Löschen.")
         
         except Exception as e:
             st.error(f"Fehler beim Laden der Aktivitäten: {e}")

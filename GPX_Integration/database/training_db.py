@@ -57,8 +57,63 @@ def tabellen_erstellen():
         )
     """)
 
+    _migriere_aktivitaeten_schema(cur)
+    _migriere_streckenpunkte_schema(cur)
+
     con.commit()
     con.close()
+
+
+def _migriere_aktivitaeten_schema(cur):
+    """
+    Migriert die Tabelle 'aktivitaeten' auf das aktuelle Schema.
+    Unterstuetzt Legacy-DBs mit alten Spaltennamen wie 'dauer' und 'distanz'.
+    """
+    cur.execute("PRAGMA table_info(aktivitaeten)")
+    spalten = {row[1] for row in cur.fetchall()}
+
+    erwartete_spalten = {
+        "dauer_sek": "REAL",
+        "distanz_km": "REAL",
+        "hoehenmeter_positiv": "REAL DEFAULT 0",
+        "hoehenmeter_negativ": "REAL DEFAULT 0",
+        "puls_durchschnitt": "REAL",
+        "puls_max": "INTEGER",
+        "geschwindigkeit_kmh": "REAL",
+        "pace_min_km": "REAL",
+        "erstellt_am": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    }
+
+    for name, typ in erwartete_spalten.items():
+        if name not in spalten:
+            cur.execute(f"ALTER TABLE aktivitaeten ADD COLUMN {name} {typ}")
+
+    # Werte aus alten Spalten uebernehmen, falls vorhanden.
+    if "dauer" in spalten:
+        cur.execute("""
+            UPDATE aktivitaeten
+            SET dauer_sek = COALESCE(dauer_sek, dauer)
+            WHERE dauer IS NOT NULL
+        """)
+
+    if "distanz" in spalten:
+        cur.execute("""
+            UPDATE aktivitaeten
+            SET distanz_km = COALESCE(distanz_km, distanz)
+            WHERE distanz IS NOT NULL
+        """)
+
+
+def _migriere_streckenpunkte_schema(cur):
+    """
+    Migriert die Tabelle 'streckenpunkte' auf das aktuelle Schema.
+    Unterstuetzt Legacy-DBs ohne Spalte 'reihenfolge'.
+    """
+    cur.execute("PRAGMA table_info(streckenpunkte)")
+    spalten = {row[1] for row in cur.fetchall()}
+
+    if "reihenfolge" not in spalten:
+        cur.execute("ALTER TABLE streckenpunkte ADD COLUMN reihenfolge INTEGER")
 
 
 def aktivitaet_speichern_mit_stats(name, datum, sportart, dauer_sek, distanz_km, 
@@ -217,4 +272,23 @@ def aktivitaet_holen(aktivitaet_id):
         "geschwindigkeit_kmh": a[10],
         "pace_min_km": a[11]
     }
+
+
+def aktivitaet_loeschen(aktivitaet_id):
+    """
+    Loescht eine Aktivitaet samt zugehoeriger Streckenpunkte.
+    Gibt True zurueck, wenn mindestens ein Datensatz geloescht wurde.
+    """
+    tabellen_erstellen()
+    con = verbindung_herstellen()
+    cur = con.cursor()
+
+    cur.execute("DELETE FROM streckenpunkte WHERE aktivitaet_id = ?", (aktivitaet_id,))
+    cur.execute("DELETE FROM aktivitaeten WHERE id = ?", (aktivitaet_id,))
+
+    geloescht = cur.rowcount > 0
+    con.commit()
+    con.close()
+
+    return geloescht
 
