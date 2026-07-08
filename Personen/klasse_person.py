@@ -1,6 +1,11 @@
 from datetime import datetime
 
 class Person:
+    """
+    Repräsentiert eine Person aus der Datenbank und stellt Funktionen zur
+    Alters- und Maximalpulsberechnung bereit. Übernimmt alle relevanten
+    Personendaten wie Name, Bildpfad und Geburtsdatum.
+    """
     def __init__(self, person_dict):
         """ 
         Personenobjekt wird angelegt und alle Daten werden übernommen.

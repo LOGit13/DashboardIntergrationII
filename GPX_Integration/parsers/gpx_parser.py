@@ -3,6 +3,11 @@ from datetime import datetime
 
 
 class Streckenpunkt:
+    """
+    Repräsentiert einen einzelnen GPS‑Trackpunkt mit Koordinaten, Höhe,
+    Zeitstempel und optionaler Herzfrequenz. Wird zur Analyse und Darstellung
+    von GPX‑basierten Trainingsstrecken verwendet.
+    """
     def __init__(self, breite, laenge, hoehe=None, zeitpunkt=None, puls=None):
         self.breite = breite      # Breitengrad
         self.laenge = laenge      # Längengrad

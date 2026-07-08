@@ -9,6 +9,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_PATH = BASE_DIR / "data" / "person_db.json"
 
 class EKGData:
+    """
+    Verarbeitet und analysiert EKG‑Messdaten, inklusive Bereinigung der Zeitreihe,
+    Peak‑Erkennung, Herzraten‑ und HRV‑Berechnung sowie Erstellung interaktiver Plotly‑Plots.
+    Dient als zentrale Datenstruktur für alle EKG‑bezogenen Funktionen im Dashboard.
+    """
+
     def __init__(self, ekg_info):
         self.id = ekg_info.get("id")
         self.datum = ekg_info.get("date")

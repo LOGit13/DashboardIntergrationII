@@ -1,4 +1,4 @@
-# 🏃 Dashboard Integration II - Trainings- & EKG-Analyseplattform
+# Dashboard Integration II - Trainings- & EKG-Analyseplattform
 
 Eine umfassende **Streamlit-basierte Webanwendung** zur Verwaltung von Personen, Analyse von EKG-Daten, Trainingsaktivitäten und sportlicher Leistungsbewertung.
 
@@ -20,12 +20,12 @@ Die Hauptaufgabe der App ist es, aus rohen Messdaten klare, vergleichbare Inform
 ```
 DashboardIntergrationII/
 │
-├── interfaceWebsite.py              # Hauptanwendung (Streamlit UI)
-├── main.py                          # Streamlit-Wrapper für den Start 
-├── requirements.txt                 # Abhängigkeiten
-├── pyproject.toml                   # Projektconfig
+├── interfaceWebsite.py             # Hauptanwendung (Streamlit UI)
+├── main.py                         # Streamlit-Wrapper für den Start 
+├── requirements.txt                # Abhängigkeiten
+├── pyproject.toml                  # Projektconfig
 │
-├── Personen/                        # Personalmanagement
+├── Personen/                       # Personalmanagement
 │   ├── klasse_person.py            # Person-Dataclass
 │   ├── klasse_ekgdata.py           # EKG-Analyselogik
 │   └── daten_einlesen.py           # JSON-I/O
@@ -63,10 +63,10 @@ DashboardIntergrationII/
 
 ---
 
-## Installation
+## Installation mit PIP
 
 ### Voraussetzungen
-- **Python 3.12+**
+- **Python 3.12 oder neuer**
 - **Git**
 - **Windows/Linux/macOS**
 
@@ -89,16 +89,32 @@ source .venv/bin/activate
 
 ### Schritt 3: Abhängigkeiten installieren
 ```bash
-pip install -r DashboardIntergrationII/requirements.txt
+pip install -r requirements.txt
 ```
 
 ### Schritt 4: Anwendung starten
 ```bash
-cd DashboardIntergrationII
 streamlit run main.py
 ```
 
-Die App öffnet sich unter `http://localhost:8501`
+## Installation mit PDM
+
+### Schritt 1: PDM installieren
+Falls PDM noch nicht installiert ist:
+```bash
+pip install pdm
+```
+
+### Schritt 2: Projektabhängigkeiten installieren
+```bash
+pdm install
+```
+
+### Schritt 3: Anwendung starten
+```bash
+pdm run streamlit run main.py
+```
+
 
 Hinweis: `streamlit run interfaceWebsite.py` funktioniert ebenfalls. `main.py` ist der empfohlene Einstiegspunkt, weil es direkt an die eigentliche App weiterleitet.
 
@@ -106,7 +122,7 @@ Hinweis: `streamlit run interfaceWebsite.py` funktioniert ebenfalls. `main.py` i
 
 ## Verwendung
 
-### Personen verwaltenn
+### Personen verwalten
 1. Navigiere zu **"Personen Verwaltung"** im Menü
 2. Wähle **"Neue Person anlegen"**
 3. Gib Namen, Geburtsdatum und Foto ein
@@ -118,6 +134,11 @@ Hinweis: `streamlit run interfaceWebsite.py` funktioniert ebenfalls. `main.py` i
 3. Lade eine EKG-Datei hoch
 4. Analysiere: Herzrate, HRV, Signalpeaks werden automatisch berechnet
 5. Wenn keine EKG-Daten vorhanden sind, erscheint eine freundliche Info statt einer Fehlermeldung
+
+### CSV-Analyse
+1. Gehe zu **"CSV Analyse"**
+2. Analysiere Trainings- und Leistungsdaten in den Zonen- und Power-Ansichten
+3. Erkenne dabei Auffälligkeiten und prüfe die Verteilung der Werte
 
 ### Training hochladen
 1. Gehe zu **"Training Leistungen"** → **"Neue Aktivität"**
@@ -140,24 +161,15 @@ Hinweis: `streamlit run interfaceWebsite.py` funktioniert ebenfalls. `main.py` i
 - Die EKG App zeigt dann eine Info-Meldung an, dass sich die Analyse für diese Person nicht ausführen lässt
 - Es wird kein Fehler ausgelöst und die App bleibt bedienbar
 
----
-
-## Funktionen
-
-- **Startseite:** Kurzer Überblick über die App und zentrale Einstellungen wie Farbmodus/Hintergrund.
-- **Personen Verwaltung:** Personen anlegen, bearbeiten und löschen, inklusive EKG-Dateien zuordnen.
-- **EKG App:** EKG-Daten einer Person visualisieren und Herzrate sowie HRV analysieren.
-- **CSV Analyse:** CSV-Trainingsdaten auswerten, Zonen prüfen und Anomalien sichtbar machen.
-- **Training Leistungen:** GPX/TCX/FIT importieren, Statistiken berechnen, Aktivitäten speichern und Verlauf verwalten.
 
 ---
 
-## 📊 Datenspeicherung
+## Datenspeicherung
 
-### SQLite Datenbank (`training.db`) ⭐
+### SQLite Datenbank (`training.db`) 
 Zentrale **Speicherung aller Trainingsaktivitäten** mit zwei Tabellen:
 
-#### 1️⃣ Tabelle: `aktivitaeten`
+#### Tabelle: `aktivitaeten`
 Speichert Metadaten jeder Trainingseinheit:
 ```sql
 CREATE TABLE aktivitaeten (
@@ -177,7 +189,7 @@ CREATE TABLE aktivitaeten (
 )
 ```
 
-#### 2️⃣ Tabelle: `streckenpunkte`
+#### Tabelle: `streckenpunkte`
 GPS-Trackpoints jeder Aktivität:
 ```sql
 CREATE TABLE streckenpunkte (
@@ -192,139 +204,62 @@ CREATE TABLE streckenpunkte (
 )
 ```
 
-### Verwendung in der App
-- ✅ **Speichern:** Neue Aktivität nach Upload → `aktivitaet_speichern_mit_stats()`
-- ✅ **Abrufen:** Aktivitätsverlauf → `alle_aktivitaeten_holen()`
-- ✅ **Batch-Insert:** GPS-Punkte → `streckenpunkte_speichern_batch()`
+## Basis-Aufgaben und Freie Aufgaben
 
-### Personen-Verwaltung (`person_db.json`)
-JSON-Datei mit Personeninformationen (Name, Geburt, Fotopfad).
+### Basis-Aufgaben
+- Alle genannten Basis-Aufgaben wurden in die App eingebaut und umgesetzt.
 
----
 
-## 🔧 Module im Detail
-
-### 📍 **GPX_Integration/database/training_db.py**
-**Zweck:** SQLite Datenbankabstraktion
-
-**Hauptfunktionen:**
-- `verbindung_herstellen()` - DB-Verbindung
-- `tabellen_erstellen()` - Initialisierung beim Start
-- `aktivitaet_speichern_mit_stats(...)` - Speichert komplette Aktivität
-- `streckenpunkte_speichern_batch(...)` - Batch-Insert von GPS-Punkten
-- `alle_aktivitaeten_holen()` - Lädt alle Aktivitäten für Dashboard
-
----
-
-### 🔍 **GPX_Integration/parsers/**
-
-#### `gpx_parser.py`
-- Parst **GPX-Dateien** (GPS Exchange Format)
-- Extrahiert: Koordinaten, Höhe, Zeitstempel
-- Rückgabe: Liste von `Streckenpunkt`-Objekten
-
-#### `tcx_parser.py`
-- Parst **TCX-Dateien** (Training Center XML, Garmin)
-- Extrahiert: Koordinaten, Höhe, Zeitstempel, Puls
-- Robust gegen Fehler mit `except Exception`-Handling
-
-#### `fit_parser.py`
-- Parst **FIT-Dateien** (Garmin binary format)
-- Nutzt `fitparse`-Bibliothek
-- Extrahiert: Position, Höhe, Herzfrequenz, Cadence
-
----
-
-### 📈 **GPX_Integration/logic/statistiken.py**
-
-Berechnet 7 Kern-Metriken aus Trackpoints:
-
-| Funktion | Berechnung |
-|---|---|
-| `gesamt_distanz()` | Haversine-Distanz zwischen allen Points |
-| `gesamt_dauer()` | Zeitspanne Start→Ende |
-| `hoehenmeter()` | Positive/Negative Elevation-Änderung |
-| `durchschnitt_puls()` | Mittelwert aller Pulswerte |
-| `maximal_puls()` | Max Herzfrequenz |
-| `durchschnittsgeschwindigkeit()` | distanz_km / dauer_h |
-| `pace()` | dauer_min / distanz_km |
-
-Alle Funktionen mit robustem **Datetime-Parsing** via `_parse_datetime()`.
-
----
-
-### 📊 **GPX_Integration/logic/hoehenprofil_interaktiv.py**
-
-Interaktive Elevation-Profil-Berechnung:
-
-| Funktion | Zweck |
-|---|---|
-| `compute_elevation_profile()` | Bereitet Höhendaten für Visualisierung auf |
-| `get_segment_stats()` | Statistiken (Steigung, Distanz) pro Segment |
-| `get_point_details_at_index()` | Detail-Info bei Höhenschieberegler |
-| `haversine_distance()` | GPS-Distanz zwischen zwei Punkten |
-
-**UI-Integration:** Schieberegler aktualisiert Karte + Statistiken in Echtzeit.
-
----
-
-### 💚 **Personen/klasse_ekgdata.py**
-
-EKG-Signalanalyse mit scipy Peak-Detection:
-
-| Methode | Zweck |
-|---|---|
-| `lade_ekg_nach_id()` | EKG-Datei für Person laden |
-| `peaks()` | R-Peak-Erkennung (Herzschläge) |
-| `herzrate()` | Herzrate aus Peaks berechnen |
-| `herzratenvariabilität()` | HRV (Varianz der RR-Intervalle) |
-| `plot_herzrate()` | Zeitreihen-Plot |
-| `plot_hrv()` | HRV-Spektralanalyse |
-
----
-
-### 📊 **CSV_analyse/**
-
-#### `power_curve.py`
-- Berechnet beste durchschnittliche **Leistung pro Zeitfenster**
-- Rolling-Window-Mechanismus
-- Nutzt `PowerOriginal`-Spalte aus CSV
-
-#### `zonen_einteilung.py`
-- Teilt Trainingseinheiten in **Herzfrequenzzonen** (Z1-Z5)
-- Berechnung basierend auf HRMax
-- Prozentuale Verteilung pro Zone
+### Freie Aufgaben
+- Auch alle genannten freien Aufgaben wurden in die App integriert.
 
 ---
 ## Eigene Features
 
 ### Startseite & Nutzerverwaltung
-- **Individueller Farbmodus und frei wählbare Hintergründe** zur persönlichen Anpassung der App.
-- **Erweiterte Nutzerverwaltung**: Nutzer löschen.
-- **Visuelles Feedbacksystem**.
+- Individueller Farbmodus und frei wählbare Hintergründe zur persönlichen Anpassung der App.
+- Erweiterte Nutzerverwaltung: Nutzer löschen.
+- Visuelles Feedbacksystem.
+    - Nach jeder Aktion erscheint eine grüne Bestätigungsmeldung.
+    - Beim Löschen erfolgt zusätzlich eine zweite Sicherheitsabfrage, um Fehlbedienungen zu vermeiden.
 
 ### EKG-Analyse & Visualisierung
-- **Interaktive Plot-Steuerung**: Peaks und Signalanteile können ein- und ausgeschaltet werden.
-- **Flexible Zeitfenstersteuerung**: Der betrachtete Zeitraum lässt sich frei in beide Richtungen verschieben.
-- **Herzfrequenz-Plot**: Alle HR-Attribute können individuell ein- oder ausgeblendet werden.
-- **Verschiebbare Messbereiche**: Beide Begrenzungspunkte ("Köpfe") lassen sich frei und in beide Richtungen verschieben.
-- **HRV-Simulation**.
+- Interaktive Plot-Steuerung: Peaks und Signalanteile können ein- und ausgeschaltet werden.
+- Flexible Zeitfenstersteuerung: Der betrachtete Zeitraum lässt sich frei in beide Richtungen verschieben.
+- Herzfrequenz-Plot: Alle HR-Attribute können individuell ein- oder ausgeblendet werden.
+- Verschiebbare Messbereiche: Beide Begrenzungspunkte („Knöpfe“) lassen sich frei und in beide Richtungen verschieben.
+- HRV-Simulation.
+    - Kritische HRV-Werte lösen ein rotes Warnsignal aus.
+    - Sichere Werte erzeugen ein grünes „Alles in Ordnung“-Signal.
 
 ### CSV-Analyse & Anomalieerkennung
-- **Anomalienmarkierung im Plot**: Auffälligkeiten werden im EKG- und Leistungsplot durch ein Kreuz hervorgehoben.
-- **Detaillierte Anomalieerklärung**: Zu jeder Auffälligkeit gibt es eine präzise Beschreibung mit konkreten Messwerten.
-- **Simulation künstlicher Testdaten**.
-- **Interaktive Tabellenansicht**: Zoneninformationen lassen sich durch Klick auf Spaltenüberschriften beliebig neu sortieren.
+- Anomalienmarkierung im Plot: Auffälligkeiten werden im EKG- und Leistungsplot durch ein Kreuz hervorgehoben.
+- Detaillierte Anomalieerklärung: Zu jeder Auffälligkeit gibt es eine präzise Beschreibung mit konkreten Messwerten.
+- Simulation künstlicher Testdaten.
+    - Zur Veranschaulichung von Anomalien passt sich der Plot dynamisch an.
+    - Die Anomalietabelle aktualisiert sich entsprechend.
+    - Künstliche Anomalien können ein- und ausgeschaltet werden.
+- Interaktive Tabellenansicht: Zoneninformationen lassen sich durch Klick auf Spaltenüberschriften beliebig neu sortieren.
 
 ### Training & Leistungsanalyse
-- **SQLite-Integration zur lokalen Speicherung aller Trainingsdaten**.
-- **Automatischer Analyse-Start**: Sobald eine ausgewählte Datei hochgeladen wurde, beginnt die Trainingsanalyse und alle relevanten Bereiche öffnen sich.
-- **Importfunktion für Fitness-Tracking-Dateien** (Strava, Garmin, weitere Apps).
-- **Sportart-Auswahl** zur präzisen Kategorisierung der Aktivität.
-- **Umfassende Trainingsstatistiken** für jede Aktivität.
-- **Dynamisches Höhenprofil**.
-- **Aktivitäten speichern & Verlauf anzeigen**.
-- **Filterfunktion nach Sportart** für eine schnelle Übersicht.
-- **Aktivitäten sicher löschen**: Beim Löschen öffnet sich ein eigenes Dialogfenster, in dem die gewünschte Aktivität ausgewählt wird. Anschließend muss der Löschvorgang über einen zweiten Button bestätigt werden, damit keine Daten versehentlich oder automatisch gelöscht werden können.
+- SQLite-Integration zur lokalen Speicherung aller Trainingsdaten.
+- Automatischer Analyse-Start: Sobald eine ausgewählte Datei hochgeladen wurde, beginnt die Trainingsanalyse und alle relevanten Bereiche öffnen sich.
+- Importfunktion für Fitness-Tracking-Dateien (Strava, Garmin, weitere Apps).
+- Sportart-Auswahl zur präzisen Kategorisierung der Aktivität.
+- Umfassende Trainingsstatistiken für jede Aktivität.
+- Dynamisches Höhenprofil.
+    - Das Profil lässt sich über die gesamte Distanz verschieben.
+    - Zu jedem Punkt werden Höhe, Steigung und exakte Kilometer angezeigt.
+    - Beim Bewegen der Maus entlang der Kurve werden alle Werte live eingeblendet.
+- Aktivitäten speichern & Verlauf anzeigen.
+    - Aktivitäten können dauerhaft gespeichert werden.
+    - Im Aktivitätsverlauf lassen sich die wichtigsten Werte vergleichen.
+- Filterfunktion nach Sportart für eine schnelle Übersicht.
+- Detailansicht für ausgewählte Trainings: Beliebig ausgewählte Trainings lassen sich im Aktivitätsverlauf anklicken und in einem separaten Fenster öffnen. Dort erhält man erneut einen kompakten Überblick über alle wichtigen Informationen der jeweiligen Aktivität.
+- Aktivitäten sicher löschen: Beim Löschen öffnet sich ein eigenes Dialogfenster, in dem die gewünschte Aktivität ausgewählt wird. Anschließend muss der Löschvorgang über einen zweiten Button bestätigt werden, damit keine Daten versehentlich gelöscht werden können.
 
 ---
+### Autoren
+---
+- Lenn Oßwald
+- Noah Reinermann
