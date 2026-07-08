@@ -2,87 +2,42 @@
 
 Eine umfassende **Streamlit-basierte Webanwendung** zur Verwaltung von Personen, Analyse von EKG-Daten, Trainingsaktivitäten und sportlicher Leistungsbewertung.
 
----
+## Kurzüberblick
 
-## 📋 Inhaltsverzeichnis
-
-- [Features](#-features)
-- [Systemarchitektur](#-systemarchitektur)
-- [Installation](#-installation)
-- [Verwendung](#-verwendung)
-- [Projektstruktur](#-projektstruktur)
-- [Technologie-Stack](#-technologie-stack)
-- [Datenspeicherung](#-datenspeicherung)
-- [Module im Detail](#-module-im-detail)
+Unsere App bündelt Personenverwaltung, EKG-Analyse und Trainingsauswertung in einer zentralen Oberfläche. 
+Sie hilft dabei, Gesundheits- und Leistungsdaten strukturiert zu erfassen, zu speichern und schnell auszuwerten. 
+Im EKG-Bereich unterstützt sie bei der Interpretation von Signalverläufen, Herzfrequenz und HRV-Werten. 
+Im Trainingsbereich analysiert sie GPX-, TCX- und FIT-Dateien und berechnet daraus verständliche Leistungskennzahlen. 
+Die Hauptaufgabe der App ist es, aus rohen Messdaten klare, vergleichbare Informationen für Betreuung, Training und Entscheidung zu machen.
 
 ---
 
-## ✨ Features
 
-### 🏠 Startseite
-- Übersicht und Einführung in die Anwendung
-- Schneller Zugriff auf alle Funktionen
 
-### 👥 Personen Verwaltung
-- **Neue Personen anlegen** mit Foto-Upload
-- **Bestehende Nutzer bearbeiten** (Persönliche Daten, Fotos)
-- **Nutzer löschen** mit Bestätigung
-- JSON-basierte Persistierung (person_db.json)
 
-### 💓 EKG Analyse
-- EKG-Daten pro Person hochladen und speichern
-- **R-Peak-Erkennung** zur automatischen Herzrate-Berechnung
-- **Herzratenvariabilität (HRV)** analysieren
-- Signalvisualisierung (EKG-Signal, Herzrate-Trend, HRV)
-- Vergleich zwischen Ruhe- und Belastungszuständen
-
-### 📊 CSV Analyse
-- Power-Curve-Berechnung für Leistungsdaten
-- Zoneneinteilung nach Herzfrequenztrainingszone
-- Interaktive Plotly-Visualisierungen
-- Datenimport aus CSV-Aktivitätsdateien
-
-### 🗺️ Training Leistungen (Hauptfeature)
-#### 📤 Neue Aktivität hochladen:
-- **Multi-Format-Unterstützung:** GPX, TCX, FIT (Garmin)
-- **Sportart-Auswahl:** Laufen, Radfahren, Wandern, Schwimmen
-- Automatische Statistik-Berechnung:
-  - Distanz, Dauer, Höhenmeter
-  - Durchschnitt/Max Pulsfrequenz
-  - Geschwindigkeit, Pace
-- **Interaktive Kartenvisualisierung** (Folium)
-- **Höhenprofil mit Schieberegler** zur Detailansicht
-
-#### 📊 Aktivitätsverlauf:
-- Alle Trainingseinheiten chronologisch anzeigen
-- 7-Metrik-Statistiken pro Aktivität
-- Filterung nach Sportart
-- Datumsbereiche auswählen
-
----
-
-## 🏗️ Systemarchitektur
+## Projektstruktur
 
 ```
 DashboardIntergrationII/
 │
-├── interfaceWebsite.py              # 🎯 Hauptanwendung (Streamlit UI)
-├── requirements.txt                 # 📦 Abhängigkeiten
-├── pyproject.toml                   # ⚙️ Projektconfig
+├── interfaceWebsite.py              # Hauptanwendung (Streamlit UI)
+├── main.py                          # Streamlit-Wrapper für den Start 
+├── requirements.txt                 # Abhängigkeiten
+├── pyproject.toml                   # Projektconfig
 │
-├── Personen/                        # 👥 Personalmanagement
+├── Personen/                        # Personalmanagement
 │   ├── klasse_person.py            # Person-Dataclass
 │   ├── klasse_ekgdata.py           # EKG-Analyselogik
 │   └── daten_einlesen.py           # JSON-I/O
 │
-├── Personen_Verwaltung/            # 🎛️ Admin-Funktionen
+├── Personen_Verwaltung/            # Admin-Funktionen
 │   └── benutzer_verwaltung.py
 │
-├── CSV_analyse/                    # 📊 Sportdaten-Auswertung
+├── CSV_analyse/                    # Sportdaten-Auswertung
 │   ├── power_curve.py              # Leistungskurvenberechnung
 │   └── zonen_einteilung.py         # Herzfrequenzzone-Analyse
 │
-├── GPX_Integration/                # 🗺️ Trainings-GPS-Daten
+├── GPX_Integration/                # Trainings-GPS-Daten
 │   ├── database/
 │   │   └── training_db.py          # SQLite Persistierung
 │   ├── parsers/
@@ -97,10 +52,10 @@ DashboardIntergrationII/
 │   └── map/
 │       └── karten_erstellung.py    # Folium-Kartenrenderer
 │
-└── data/                           # 📁 Datenspeicher
+└── data/                           # Datenspeicher
     ├── person_db.json              # Personenverwaltung
     ├── activity.csv                # Aktivitätsdaten
-    ├── training.db                 # SQLite-Datenbank ⭐
+    ├── training.db                 # SQLite-Datenbank 
     ├── ekg_data/                   # EKG-Messdateien
     ├── data_sortiert/              # Verarbeitete EKG-Daten
     └── pictures/                   # Benutzerfotos
@@ -108,7 +63,7 @@ DashboardIntergrationII/
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Voraussetzungen
 - **Python 3.12+**
@@ -140,14 +95,16 @@ pip install -r DashboardIntergrationII/requirements.txt
 ### Schritt 4: Anwendung starten
 ```bash
 cd DashboardIntergrationII
-streamlit run interfaceWebsite.py
+streamlit run main.py
 ```
 
 Die App öffnet sich unter `http://localhost:8501`
 
+Hinweis: `streamlit run interfaceWebsite.py` funktioniert ebenfalls. `main.py` ist der empfohlene Einstiegspunkt, weil es direkt an die eigentliche App weiterleitet.
+
 ---
 
-## 💻 Verwendung
+## Verwendung
 
 ### Personen verwaltenn
 1. Navigiere zu **"Personen Verwaltung"** im Menü
@@ -160,9 +117,10 @@ Die App öffnet sich unter `http://localhost:8501`
 2. Wähle eine Person aus
 3. Lade eine EKG-Datei hoch
 4. Analysiere: Herzrate, HRV, Signalpeaks werden automatisch berechnet
+5. Wenn keine EKG-Daten vorhanden sind, erscheint eine freundliche Info statt einer Fehlermeldung
 
 ### Training hochladen
-1. Gehe zu **"Training Leistungen"** → **"📤 Neue Aktivität"**
+1. Gehe zu **"Training Leistungen"** → **"Neue Aktivität"**
 2. Lade eine **GPX/TCX/FIT-Datei** hoch
 3. Wähle **Sportart** und **Startzeit**
 4. System berechnet automatisch:
@@ -172,41 +130,25 @@ Die App öffnet sich unter `http://localhost:8501`
 5. Speichern → Daten in SQLite-DB gespeichert
 
 ### Aktivitätsverlauf ansehen
-1. **"Training Leistungen"** → **"📊 Aktivitätsverlauf"**
-2. Filtere nach **Sportart** oder **Zeitraum**
-3. Klicke auf Aktivität für Details (Karte + Statistiken)
+1. **"Training Leistungen"** → **"Aktivitätsverlauf"**
+2. Filtere nach **Sportart**
+3. Die Tabelle wird direkt unter dem Sportarten-Filter angezeigt
+4. Klicke auf **"Aktivität löschen"**, wähle eine Aktivität aus und bestätige den Löschvorgang
+5. Klicke auf eine Aktivität für Details (Karte + Statistiken)
+
+### Wenn keine EKG-Daten vorhanden sind
+- Die EKG App zeigt dann eine Info-Meldung an, dass sich die Analyse für diese Person nicht ausführen lässt
+- Es wird kein Fehler ausgelöst und die App bleibt bedienbar
 
 ---
 
-## 📦 Technologie-Stack
+## Funktionen
 
-### Core Framework
-| Technologie | Version | Zweck |
-|---|---|---|
-| **Streamlit** | 1.58.0 | Web-UI Framework |
-| **streamlit-option-menu** | 0.4.0 | Navigationsmenü |
-
-### Datenverarbeitung & Visualisierung
-| Technologie | Version | Zweck |
-|---|---|---|
-| **pandas** | 2.3.3 | Datenmanipulation |
-| **numpy** | ≥1.24.0 | Numerische Berechnungen |
-| **plotly** | 6.8.0 | Interaktive Diagramme |
-| **folium** | 0.20.0 | Karten-Rendering |
-| **pillow** | ≥10.0.0 | Bildverarbeitung |
-
-### Signal- & Wissenschaft
-| Technologie | Version | Zweck |
-|---|---|---|
-| **scipy** | 1.18.0 | Signalverarbeitung (Peak-Detection) |
-| **neurokit2** | 0.2.13 | Biomedizinische Signal-Analyse |
-
-### Dateiformate & Datenbank
-| Technologie | Version | Zweck |
-|---|---|---|
-| **fitparse** | 1.2.0 | Garmin FIT-Format-Parser |
-| **sqlite3** | Built-in | Aktivitäts-Persistierung |
-| **json** | Built-in | Personen-Speicherung |
+- **Startseite:** Kurzer Überblick über die App und zentrale Einstellungen wie Farbmodus/Hintergrund.
+- **Personen Verwaltung:** Personen anlegen, bearbeiten und löschen, inklusive EKG-Dateien zuordnen.
+- **EKG App:** EKG-Daten einer Person visualisieren und Herzrate sowie HRV analysieren.
+- **CSV Analyse:** CSV-Trainingsdaten auswerten, Zonen prüfen und Anomalien sichtbar machen.
+- **Training Leistungen:** GPX/TCX/FIT importieren, Statistiken berechnen, Aktivitäten speichern und Verlauf verwalten.
 
 ---
 
@@ -354,107 +296,35 @@ EKG-Signalanalyse mit scipy Peak-Detection:
 - Prozentuale Verteilung pro Zone
 
 ---
+## Eigene Features
 
-## 🎯 Workflow: GPX-Upload bis Speicherung
+### Startseite & Nutzerverwaltung
+- **Individueller Farbmodus und frei wählbare Hintergründe** zur persönlichen Anpassung der App.
+- **Erweiterte Nutzerverwaltung**: Nutzer löschen.
+- **Visuelles Feedbacksystem**.
 
-```
-1. Benutzer lädt GPX/TCX/FIT-Datei
-                    ↓
-2. Entsprechender Parser lädt Trackpoints
-                    ↓
-3. statistiken.py berechnet 7 Metriken
-                    ↓
-4. hoehenprofil_interaktiv.py erstellt Höhendaten
-                    ↓
-5. karten_erstellung.py rendert Folium-Karte
-                    ↓
-6. Streamlit zeigt Karte + Höhenprofil + Statistiken
-                    ↓
-7. Benutzer klickt "Speichern"
-                    ↓
-8. aktivitaet_speichern_mit_stats() speichert in training.db
-   └─ aktivitaet_speichern_batch() speichert alle GPS-Punkte
-                    ↓
-9. Daten erscheinen im "Aktivitätsverlauf"-Tab
-```
+### EKG-Analyse & Visualisierung
+- **Interaktive Plot-Steuerung**: Peaks und Signalanteile können ein- und ausgeschaltet werden.
+- **Flexible Zeitfenstersteuerung**: Der betrachtete Zeitraum lässt sich frei in beide Richtungen verschieben.
+- **Herzfrequenz-Plot**: Alle HR-Attribute können individuell ein- oder ausgeblendet werden.
+- **Verschiebbare Messbereiche**: Beide Begrenzungspunkte ("Köpfe") lassen sich frei und in beide Richtungen verschieben.
+- **HRV-Simulation**.
 
----
+### CSV-Analyse & Anomalieerkennung
+- **Anomalienmarkierung im Plot**: Auffälligkeiten werden im EKG- und Leistungsplot durch ein Kreuz hervorgehoben.
+- **Detaillierte Anomalieerklärung**: Zu jeder Auffälligkeit gibt es eine präzise Beschreibung mit konkreten Messwerten.
+- **Simulation künstlicher Testdaten**.
+- **Interaktive Tabellenansicht**: Zoneninformationen lassen sich durch Klick auf Spaltenüberschriften beliebig neu sortieren.
 
-## 📝 Docstring-Standard
-
-Alle Funktionen haben **1-2 Sätze Dokumentation**:
-
-```python
-def berechne_distanz(koordinaten: list) -> float:
-    """Berechnet die Gesamtstrecke zwischen GPS-Punkten mittels Haversine-Formel."""
-    ...
-```
+### Training & Leistungsanalyse
+- **SQLite-Integration zur lokalen Speicherung aller Trainingsdaten**.
+- **Automatischer Analyse-Start**: Sobald eine ausgewählte Datei hochgeladen wurde, beginnt die Trainingsanalyse und alle relevanten Bereiche öffnen sich.
+- **Importfunktion für Fitness-Tracking-Dateien** (Strava, Garmin, weitere Apps).
+- **Sportart-Auswahl** zur präzisen Kategorisierung der Aktivität.
+- **Umfassende Trainingsstatistiken** für jede Aktivität.
+- **Dynamisches Höhenprofil**.
+- **Aktivitäten speichern & Verlauf anzeigen**.
+- **Filterfunktion nach Sportart** für eine schnelle Übersicht.
+- **Aktivitäten sicher löschen**: Beim Löschen öffnet sich ein eigenes Dialogfenster, in dem die gewünschte Aktivität ausgewählt wird. Anschließend muss der Löschvorgang über einen zweiten Button bestätigt werden, damit keine Daten versehentlich oder automatisch gelöscht werden können.
 
 ---
-
-## ⚙️ Konfiguration
-
-### Abtastrate
-```python
-abtastrate = 100  # Hz, in interfaceWebsite.py
-```
-
-### Datenverzeichnisse
-```python
-DATA_DIR = BASE_DIR / "data"
-ORDNER_EKG = DATA_DIR / "ekg_data"
-ORDNER_SORTIERT = DATA_DIR / "data_sortiert"
-BILDER_DIR = DATA_DIR / "pictures"
-```
-
-Alle Verzeichnisse werden beim Start automatisch erstellt.
-
----
-
-## 🐛 Fehlerbehandlung
-
-- ✅ **Bare except → except Exception** (PEP 8 konform)
-- ✅ **Robustes Datetime-Parsing** mit Fallback-Logik
-- ✅ **Dateiformat-Fehler** werden abgefangen
-- ✅ **SQLite-Verbindungsfehler** mit `con.close()`-Cleanup
-
----
-
-## 📜 Lizenz
-
-Projekt für Ausbildung/Evaluation
-
----
-
-## 👨‍💻 Entwicklung
-
-### Abhängigkeiten aktualisieren
-```bash
-pip install -r DashboardIntergrationII/requirements.txt --upgrade
-```
-
-### Tests ausführen (optional)
-```bash
-pytest  # Wenn Test-Framework hinzugefügt
-```
-
-### Git-Workflow
-```bash
-git add .
-git commit -m "Feature: XYZ"
-git push origin main
-```
-
----
-
-## 📞 Support
-
-Bei Fragen oder Fehlern:
-1. Überprüfe `requirements.txt` auf passende Versionen
-2. Stelle sicher, dass `.venv` aktiviert ist
-3. Überprüfe Dateirechte für `data/`-Verzeichnis
-4. Konsultiere Fehlerausgabe in Streamlit-Terminal
-
----
-
-**Viel Spaß mit der App! 🚀💓🏃**

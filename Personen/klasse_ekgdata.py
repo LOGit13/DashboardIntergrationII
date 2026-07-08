@@ -16,6 +16,7 @@ class EKGData:
 
         try:
             self.df = pd.read_csv(self.pfad, sep="\t", header=None, names=["Messwert", "Zeit"])
+            self.df = self._bereinige_zeitreihe(self.df)
         except Exception:
             print("Fehler beim Laden der Datei:", self.pfad)
             self.df = pd.DataFrame(columns=["Messwert", "Zeit"])
@@ -23,6 +24,28 @@ class EKGData:
         self.start = None
         self.ende = None
         self.rate = None
+
+    @staticmethod
+    def _bereinige_zeitreihe(df):
+        """Entfernt alte Teilmessungen bei Zeit-Resets in einer Datei.
+
+        Einige Legacy-Dateien enthalten mehrere hintereinander angehaengte Tests.
+        Bei einem Zeit-Reset (Zeit sinkt) behalten wir nur den letzten Block,
+        damit im Plot nicht zwei Tests uebereinanderliegen.
+        """
+        if df.empty or "Zeit" not in df.columns:
+            return df
+
+        zeit = pd.to_numeric(df["Zeit"], errors="coerce")
+        if zeit.isna().all():
+            return df
+
+        reset_idx = zeit.diff()[zeit.diff() < 0].index
+        if len(reset_idx) == 0:
+            return df
+
+        start_idx = int(reset_idx[-1])
+        return df.iloc[start_idx:].reset_index(drop=True)
 
     @staticmethod
     def lade_ekg_nach_id(ekg_id, personen_liste):

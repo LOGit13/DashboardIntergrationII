@@ -107,7 +107,7 @@ if str(PROJECT_ROOT) not in sys.path:
 with st.sidebar:
     selected = option_menu(
         menu_title="Menü",
-        options=["Startseite", "Personen Verwaltung", "EKG App", "CSV Analyse", "Training Leistungen"],
+        options=["Startseite", "Personen Verwaltung", "EKG App", "CSV Analyse", "Trainings Leistungen"],
         icons=["house", "people", "activity", "file-earmark-bar-graph"],
         menu_icon="cast",
         default_index=0,
@@ -673,13 +673,138 @@ if selected == "CSV Analyse":
         st.plotly_chart(power_curve.zoom_powercurve(df_power, x_min, x_max, freq))
 
 
-if selected == "Training Leistungen":
-    st.title("Training Leistungen")
+if selected == "Trainings Leistungen":
+    st.title("Trainings Leistungen")
     
     tabellen_erstellen()
     
     # Tabs für Upload und Verwaltung
     tab_upload, tab_history = st.tabs(["Neue Aktivität", "Aktivitätsverlauf"])
+
+    @st.dialog("Trainingsdetails")
+    def _zeige_aktivitaet_details_dialog(aktivitaet):
+        st.subheader(aktivitaet.get("name", "Aktivität"))
+
+        info_col1, info_col2, info_col3 = st.columns(3)
+        with info_col1:
+            st.metric("Sportart", aktivitaet.get("sportart") or "N/A")
+        with info_col2:
+            st.metric("Datum", aktivitaet.get("datum") or "N/A")
+        with info_col3:
+            st.metric("Aktivität-ID", str(aktivitaet.get("id", "N/A")))
+
+        punkte = training_db_module.streckenpunkte_holen(aktivitaet.get("id"))
+        if not punkte:
+            st.info("Für diese Aktivität sind keine Streckenpunkte gespeichert.")
+            return
+
+        st.subheader("Trainingsroute")
+        try:
+            karte = karte_erstellen_fuer_streamlit(punkte)
+            st.components.v1.html(karte.get_root().render(), height=450)
+        except Exception as e:
+            st.warning(f"Karte konnte nicht erstellt werden: {e}")
+
+        st.subheader("Trainingsstatistiken")
+        col1, col2, col3, col4 = st.columns(4)
+
+        dauer_sek = aktivitaet.get("dauer_sek")
+        distanz_km = aktivitaet.get("distanz_km")
+        hm_pos = aktivitaet.get("hoehenmeter_positiv")
+        hm_neg = aktivitaet.get("hoehenmeter_negativ")
+        geschw = aktivitaet.get("geschwindigkeit_kmh")
+        puls_avg = aktivitaet.get("puls_durchschnitt")
+        puls_max = aktivitaet.get("puls_max")
+
+        with col1:
+            st.metric("Distanz", f"{distanz_km:.2f} km" if distanz_km else "N/A")
+        with col2:
+            st.metric(
+                "Dauer",
+                f"{int(dauer_sek // 3600):02d}:{int((dauer_sek % 3600) // 60):02d}:{int(dauer_sek % 60):02d}"
+                if dauer_sek else "N/A"
+            )
+        with col3:
+            st.metric("Höhenmeter (↑)", f"{hm_pos:.0f} m" if hm_pos else "N/A")
+        with col4:
+            st.metric("Höhenmeter (↓)", f"{hm_neg:.0f} m" if hm_neg else "N/A")
+
+        col5, col6, col7 = st.columns(3)
+        with col5:
+            st.metric("Ø-Geschwindigkeit", f"{geschw:.2f} km/h" if geschw else "N/A")
+        with col6:
+            st.metric("Ø-Puls", f"{puls_avg:.0f} BPM" if puls_avg else "N/A")
+        with col7:
+            st.metric("Max-Puls", f"{puls_max} BPM" if puls_max else "N/A")
+
+        st.subheader("Höhenprofil")
+        try:
+            profile = compute_elevation_profile(punkte)
+            stats = get_segment_stats(punkte)
+
+            if profile and len(profile) > 0:
+                slider_key = f"history_profile_idx_{aktivitaet.get('id')}"
+                selected_index = st.slider(
+                    "Punkt im Profil auswählen:",
+                    0,
+                    len(profile) - 1,
+                    0,
+                    key=slider_key,
+                )
+
+                point_details = get_point_details_at_index(profile, selected_index)
+                if point_details:
+                    pcol1, pcol2, pcol3 = st.columns(3)
+                    with pcol1:
+                        st.metric("Kilometer", f"{point_details['km']:.2f}")
+                    with pcol2:
+                        st.metric("Höhe", f"{point_details['hoehe']:.0f} m")
+                    with pcol3:
+                        if point_details['anstieg_prozent'] > 0:
+                            st.metric("Anstieg", f"{point_details['anstieg_prozent']:.1f}%")
+                        else:
+                            st.metric("Gefälle", f"{point_details['gefaelle_prozent']:.1f}%")
+
+                import plotly.graph_objects as go
+                fig_profile = go.Figure()
+                kms = [p['km'] for p in profile]
+                hoehen = [p['hoehe'] for p in profile]
+
+                fig_profile.add_trace(go.Scatter(
+                    x=kms,
+                    y=hoehen,
+                    mode='lines',
+                    fill='tozeroy',
+                    line=dict(color='#1f77b4', width=3),
+                    name='Höhe'
+                ))
+
+                if 0 <= selected_index < len(profile):
+                    fig_profile.add_trace(go.Scatter(
+                        x=[profile[selected_index]['km']],
+                        y=[profile[selected_index]['hoehe']],
+                        mode='markers',
+                        marker=dict(size=12, color='red'),
+                        name='Aktueller Punkt'
+                    ))
+
+                fig_profile.update_layout(
+                    title="Höhenverlauf",
+                    xaxis_title="Distanz (km)",
+                    yaxis_title="Höhe (m)",
+                    hovermode='x unified',
+                    height=380
+                )
+
+                st.plotly_chart(fig_profile, use_container_width=True)
+                st.caption(
+                    f"Min: {stats['min_hoehe']:.0f}m | Max: {stats['max_hoehe']:.0f}m | "
+                    f"Total ↑: {stats['total_stieg']:.0f}m | Total ↓: {stats['total_fall']:.0f}m"
+                )
+            else:
+                st.warning("Keine Höhendaten vorhanden")
+        except Exception as e:
+            st.warning(f"Höhenprofil konnte nicht erstellt werden: {e}")
     
     with tab_upload:
         st.subheader("GPX/TCX/FIT-Datei hochladen")
@@ -886,8 +1011,27 @@ if selected == "Training Leistungen":
                         "Ø Speed (km/h)": f"{a['geschwindigkeit_kmh']:.2f}" if a['geschwindigkeit_kmh'] else "N/A",
                         "Höhenmeter (↑)": f"{a['hoehenmeter_positiv']:.0f}" if a['hoehenmeter_positiv'] else "N/A"
                     })
-                
-                st.dataframe(display_data, use_container_width=True)
+
+                df_display = pd.DataFrame(display_data)
+                st.caption("Klicke auf eine Zeile, um die Aktivität im Detailfenster zu öffnen.")
+                selected_rows = []
+                try:
+                    table_event = st.dataframe(
+                        df_display,
+                        use_container_width=True,
+                        on_select="rerun",
+                        selection_mode="single-row",
+                    )
+                    selected_rows = list(table_event.selection.rows)
+                except TypeError:
+                    # Fallback für Streamlit-Versionen ohne Zeilen-Selektion in st.dataframe
+                    st.dataframe(df_display, use_container_width=True)
+
+                if selected_rows:
+                    selected_idx = selected_rows[0]
+                    if 0 <= selected_idx < len(filtered):
+                        _zeige_aktivitaet_details_dialog(filtered[selected_idx])
+
                 st.caption(f"Insgesamt {len(filtered)} Aktivitäten angezeigt")
 
                 aktivitaet_lookup = {
