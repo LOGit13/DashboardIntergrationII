@@ -14,7 +14,11 @@ Die Hauptaufgabe der App ist es, aus rohen Messdaten klare, vergleichbare Inform
 
 
 
+## Hinweis
 
+Für eine korrekte Farbdarstellung der App sollte auf dem Handy und am Laptop in den Systemeinstellungen der Light Mode (helles Design) aktiviert sein.
+
+---
 ## Projektstruktur
 
 ```
